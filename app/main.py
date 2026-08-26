@@ -11,6 +11,8 @@ GET  /health        → service health check
 import os
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -57,16 +59,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/", summary="Root Endpoint")
-def root_index():
-    return {
-        "message": "Welcome to TenderAI Enterprise API",
-        "version": "1.2.0",
-        "documentation": "/docs",
-        "health": "/health",
-        "metrics": "/admin/metrics",
-    }
+
+@app.get("/", response_class=FileResponse, summary="Interactive Dashboard")
+@app.get("/dashboard", response_class=FileResponse, summary="Interactive Dashboard")
+def serve_dashboard():
+    dashboard_path = os.path.join("static", "dashboard.html")
+    if os.path.exists(dashboard_path):
+        return FileResponse(dashboard_path)
+    return FileResponse("static/dashboard.html")
+
 
 
 # ---------------------------------------------------------------------------
