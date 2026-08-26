@@ -57,6 +57,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/", summary="Root Endpoint")
+def root_index():
+    return {
+        "message": "Welcome to TenderAI Enterprise API",
+        "version": "1.2.0",
+        "documentation": "/docs",
+        "health": "/health",
+        "metrics": "/admin/metrics",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
