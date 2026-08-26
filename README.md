@@ -69,8 +69,8 @@ graph TD
 
 ### 1. Clone & Set Up Environment
 ```bash
-git clone https://github.com/sharma614/Tender_AI.git
-cd Tender_AI
+git clone https://github.com/your-username/TenderAI.git
+cd TenderAI
 
 # Create virtual environment
 python -m venv venv
