@@ -1,6 +1,6 @@
 # TenderAI: Enterprise Multi-Agent Tender Analysis, Risk Evaluation & Compliance System
 
-[![CI/CD Pipeline](https://github.com/your-username/TenderAI/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/TenderAI/actions/workflows/ci.yml)
+[![CI/CD Pipeline](https://github.com/sharma614/Tender_AI/actions/workflows/ci.yml/badge.svg)](https://github.com/sharma614/Tender_AI/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://python.org)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)](https://docker.com)
@@ -69,8 +69,8 @@ graph TD
 
 ### 1. Clone & Set Up Environment
 ```bash
-git clone https://github.com/your-username/TenderAI.git
-cd TenderAI
+git clone https://github.com/sharma614/Tender_AI.git
+cd Tender_AI
 
 # Create virtual environment
 python -m venv venv
