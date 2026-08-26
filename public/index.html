@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TenderAI — AI-Powered RFP Automation & Multi-Agent RAG Engine</title>
+    <meta name="description" content="Automate tender evaluation, compliance verification, and risk analysis using Multi-Agent AI and RAG vector search.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-black: #08090a;
+            --bg-card: #121417;
+            --bg-card-hover: #1a1d22;
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-bright: rgba(255, 255, 255, 0.18);
+            
+            --lime-green: #ccff00;
+            --lime-glow: rgba(204, 255, 0, 0.25);
+            --lime-dark: #a6d900;
+            
+            --text-primary: #ffffff;
+            --text-secondary: #9aa0a6;
+            --text-dim: #64748b;
+            
+            --danger: #ff4d4d;
+            --success: #10b981;
+            --warning: #fbbf24;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-black);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            line-height: 1.6;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        h1, h2, h3, h4, .brand-logo, .btn-lime {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header Navigation */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(8, 9, 10, 0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .nav-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 72px;
+        }
+
+        .brand-logo {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #fff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .brand-dot {
+            color: var(--lime-green);
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: color 0.2s;
+        }
+
+        .nav-link:hover {
+            color: var(--lime-green);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn-lime {
+            background-color: var(--lime-green);
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-lime:hover {
+            background-color: var(--lime-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px var(--lime-glow);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-bright);
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #fff;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 100px 0 60px;
+            text-align: left;
+        }
+
+        .category-tag {
+            color: var(--lime-green);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 1px;
+            margin-bottom: 24px;
+            display: inline-block;
+        }
+
+        .hero-title {
+            font-size: 56px;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            max-width: 900px;
+            margin-bottom: 28px;
+        }
+
+        .hero-subtitle {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 720px;
+            margin-bottom: 40px;
+            font-weight: 400;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        /* Scrolling Marquee */
+        .marquee-container {
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 18px 0;
+            overflow: hidden;
+            background: rgba(18, 20, 23, 0.5);
+            margin: 60px 0;
+        }
+
+        .marquee-track {
+            display: flex;
+            gap: 40px;
+            white-space: nowrap;
+            animation: marquee 25s linear infinite;
+        }
+
+        .marquee-item {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .marquee-item span {
+            color: var(--lime-green);
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* Interactive Simulator / Sandbox */
+        .sandbox-section {
+            padding: 40px 0 80px;
+        }
+
+        .section-header {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 36px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 12px;
+        }
+
+        .sandbox-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 24px;
+            padding: 36px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .preset-pills {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pill.active, .pill:hover {
+            background: rgba(204, 255, 0, 0.1);
+            border-color: var(--lime-green);
+            color: var(--lime-green);
+        }
+
+        .sandbox-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+        }
+
+        @media (max-width: 900px) {
+            .sandbox-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input-box {
+            background: var(--bg-black);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .drop-area {
+            border: 2px dashed var(--border-bright);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .drop-area:hover {
+            border-color: var(--lime-green);
+            background: rgba(204, 255, 0, 0.03);
+        }
+
+        .output-box {
+            background: var(--bg-black);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px;
+            min-height: 380px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .output-tabs {
+            display: flex;
+            gap: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+        }
+
+        .out-tab {
+            color: var(--text-dim);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .out-tab.active {
+            color: var(--lime-green);
+        }
+
+        .result-content {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            flex-grow: 1;
+        }
+
+        /* ROI Calculator Section */
+        .calculator-section {
+            padding: 80px 0;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .calc-card {
+            background: linear-gradient(135deg, rgba(18, 20, 23, 0.9), rgba(26, 29, 34, 0.9));
+            border: 1px solid var(--border-bright);
+            border-radius: 24px;
+            padding: 40px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        @media (max-width: 800px) {
+            .calc-card {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .slider-group {
+            margin-bottom: 28px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: var(--text-secondary);
+        }
+
+        .slider-val {
+            color: var(--lime-green);
+            font-weight: 700;
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--lime-green);
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .roi-results {
+            background: var(--bg-black);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 24px;
+        }
+
+        .roi-stat {
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 16px;
+        }
+
+        .roi-stat:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .roi-number {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--lime-green);
+        }
+
+        /* Content / Blog Deep Dive Section */
+        .content-section {
+            padding: 80px 0;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .article-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 24px;
+            padding: 48px;
+            margin-top: 32px;
+        }
+
+        .article-title {
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+
+        .benefit-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-top: 36px;
+        }
+
+        .benefit-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .benefit-card h4 {
+            color: var(--lime-green);
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        /* Big CTA Banner */
+        .cta-banner {
+            padding: 100px 0;
+            text-align: center;
+            border-top: 1px solid var(--border-subtle);
+            background: radial-gradient(circle at center, rgba(204, 255, 0, 0.05) 0%, transparent 70%);
+        }
+
+        .cta-title {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        /* Cookie Overlay */
+        .cookie-modal {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(18, 20, 23, 0.95);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-bright);
+            border-radius: 20px;
+            padding: 20px 28px;
+            width: 90%;
+            max-width: 620px;
+            z-index: 1000;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .cookie-title {
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .cookie-text {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .cookie-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 13px;
+            border-radius: 20px;
+        }
+
+        /* Start Project Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-bright);
+            border-radius: 24px;
+            padding: 40px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-black);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--lime-green);
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border-subtle);
+            padding: 40px 0;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .footer-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+
+        .footer-link:hover {
+            color: var(--lime-green);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="container nav-inner">
+            <a href="#" class="brand-logo">
+                tenderai<span class="brand-dot">.</span>
+            </a>
+            
+            <ul class="nav-menu">
+                <li><a href="#sandbox" class="nav-link">Sandbox</a></li>
+                <li><a href="#calculator" class="nav-link">ROI Calculator</a></li>
+                <li><a href="#technology" class="nav-link">RAG Engine</a></li>
+                <li><a href="https://github.com/sharma614/Tender_AI" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <button class="btn-lime" onclick="openModal()">Start a project →</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero container">
+        <div class="category-tag">/ RAG-POWERED RETRIEVAL ENGINE / AUTOMOTIVE & ENTERPRISE</div>
+        <h1 class="hero-title">
+            Automate RFP Process with AI-Powered Multi-Agent Intelligence
+        </h1>
+        <p class="hero-subtitle">
+            Streamline complex tender analysis, clause matching, and compliance scoring from weeks to seconds with our zero-hallucination Retrieval-Augmented Generation engine.
+        </p>
+        <div class="hero-cta">
+            <a href="#sandbox" class="btn-lime">Explore Live Sandbox →</a>
+            <button class="btn-outline" onclick="openModal()">Schedule Enterprise Demo</button>
+        </div>
+    </section>
+
+    <!-- Infinite Scrolling Marquee -->
+    <div class="marquee-container">
+        <div class="marquee-track">
+            <div class="marquee-item">TenderAI <span>/</span> RAG Retrieval <span>/</span> Multi-Agent Graph <span>/</span> pgvector <span>/</span> Automotive <span>/</span> Aerospace <span>/</span> Smart Infrastructure <span>/</span> Zero-Hallucination <span>/</span></div>
+            <div class="marquee-item">TenderAI <span>/</span> RAG Retrieval <span>/</span> Multi-Agent Graph <span>/</span> pgvector <span>/</span> Automotive <span>/</span> Aerospace <span>/</span> Smart Infrastructure <span>/</span> Zero-Hallucination <span>/</span></div>
+        </div>
+    </div>
+
+    <!-- Live Interactive Sandbox / RFP Simulator -->
+    <section id="sandbox" class="sandbox-section container">
+        <div class="section-header">
+            <h2 class="section-title">Interactive Multi-Agent Sandbox</h2>
+            <p style="color: var(--text-secondary);">Test live RFP chunking, pgvector context retrieval, and compliance verification.</p>
+        </div>
+
+        <div class="sandbox-card">
+            <div class="preset-pills">
+                <div class="pill active" onclick="loadPreset(0)">Automotive AI Supply Chain RFP</div>
+                <div class="pill" onclick="loadPreset(1)">Smart Infrastructure Surveillance</div>
+                <div class="pill" onclick="loadPreset(2)">Aerospace Cloud Defense Bid</div>
+            </div>
+
+            <div class="sandbox-grid">
+                <!-- Input Column -->
+                <div class="input-box">
+                    <h3 style="font-size: 16px; margin-bottom: 16px; display: flex; justify-content: space-between;">
+                        <span>Upload or Select Document</span>
+                        <span style="font-size: 12px; color: var(--lime-green);">PDF / 384d Vectors</span>
+                    </h3>
+
+                    <div class="drop-area" onclick="triggerFilePicker()">
+                        <div style="font-size: 32px; margin-bottom: 8px;">📑</div>
+                        <div style="font-weight: 600; margin-bottom: 4px;" id="drop-filename">Click or Drop RFP PDF</div>
+                        <div style="font-size: 12px; color: var(--text-dim);">Automated 1,000 char chunking</div>
+                        <input type="file" id="sandbox-file" style="display: none;" onchange="handleFileDrop(event)">
+                    </div>
+
+                    <button class="btn-lime" style="width: 100%; justify-content: center;" onclick="runRAGSimulation()">
+                        ⚡ Run Multi-Agent Analysis
+                    </button>
+                </div>
+
+                <!-- Output Column -->
+                <div class="output-box">
+                    <div class="output-tabs">
+                        <div class="out-tab active" onclick="setOutTab('summary')">Executive Summary</div>
+                        <div class="out-tab" onclick="setOutTab('compliance')">Compliance Matrix</div>
+                        <div class="out-tab" onclick="setOutTab('risks')">Risk Evaluation</div>
+                    </div>
+
+                    <div class="result-content" id="out-content">
+                        Loading sample preset data...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- RAG ROI Calculator -->
+    <section id="calculator" class="calculator-section container">
+        <div class="section-header">
+            <h2 class="section-title">Calculate Your Time & Cost Savings</h2>
+            <p style="color: var(--text-secondary);">See how much manual engineering time TenderAI saves your tender response team.</p>
+        </div>
+
+        <div class="calc-card">
+            <div>
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>RFPs Processed / Month</span>
+                        <span class="slider-val" id="val-rfps">15</span>
+                    </div>
+                    <input type="range" id="slider-rfps" min="1" max="100" value="15" oninput="updateROI()">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Average RFP Length (Pages)</span>
+                        <span class="slider-val" id="val-pages">150</span>
+                    </div>
+                    <input type="range" id="slider-pages" min="20" max="500" value="150" oninput="updateROI()">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Legal / Technical Hourly Rate ($)</span>
+                        <span class="slider-val" id="val-rate">$120/hr</span>
+                    </div>
+                    <input type="range" id="slider-rate" min="50" max="300" value="120" oninput="updateROI()">
+                </div>
+            </div>
+
+            <div class="roi-results">
+                <div class="roi-stat">
+                    <div style="font-size: 13px; color: var(--text-secondary);">Estimated Hours Saved / Month</div>
+                    <div class="roi-number" id="roi-hours">225 hrs</div>
+                </div>
+
+                <div class="roi-stat">
+                    <div style="font-size: 13px; color: var(--text-secondary);">Monthly Cost Reduction</div>
+                    <div class="roi-number" style="color: #ffffff;" id="roi-savings">$27,000</div>
+                </div>
+
+                <div class="roi-stat">
+                    <div style="font-size: 13px; color: var(--text-secondary);">Tender Proposal Speedup</div>
+                    <div class="roi-number" style="color: var(--lime-green);">12.5x Faster</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Deep-Dive RAG Tech Overview Section (Matching Reference Screenshots) -->
+    <section id="technology" class="content-section container">
+        <div class="section-header">
+            <div class="category-tag">/ ARCHITECTURE & BENEFITS</div>
+            <h2 class="section-title">Why RAG-Based Retrieval Engines Transform RFP Management</h2>
+        </div>
+
+        <div class="article-card">
+            <h3 class="article-title">Automate RFP Process with RAG-Based Retrieval Engine for Automotive Companies</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                In the complex and often time-consuming process of Request for Proposal (RFP) management, automating search and retrieval of relevant clauses can be a game-changer. Traditional manual methods involve hours of searching through internal databases, regulatory manuals, and technical specification sheets.
+            </p>
+            <p style="color: var(--text-secondary);">
+                As procurement complexity scales, volume increases exponentially. TenderAI leverages a custom-built Multi-Agent Retrieval-Augmented Generation (RAG) system operating over vector embeddings to instantly align company capabilities with complex RFP requirements.
+            </p>
+
+            <div class="benefit-grid">
+                <div class="benefit-card">
+                    <h4>Fast Vector Search</h4>
+                    <p style="font-size: 13px; color: var(--text-secondary);">Sub-second similarity queries across 300+ page tenders using pgvector cosine indexing.</p>
+                </div>
+                <div class="benefit-card">
+                    <h4>Zero-Hallucination</h4>
+                    <p style="font-size: 13px; color: var(--text-secondary);">Every compliance status and risk rating is strictly grounded with exact source citations.</p>
+                </div>
+                <div class="benefit-card">
+                    <h4>Compliance Scoring</h4>
+                    <p style="font-size: 13px; color: var(--text-secondary);">Automated Pass/Fail verification against annual turnover, experience, and ISO standards.</p>
+                </div>
+                <div class="benefit-card">
+                    <h4>Risk Mitigation</h4>
+                    <p style="font-size: 13px; color: var(--text-secondary);">Identifies aggressive liquidated damages penalties and suggests concrete contract mitigations.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Big CTA Section -->
+    <section class="cta-banner">
+        <div class="container">
+            <h2 class="cta-title">Let's bring your vision into reality</h2>
+            <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto 32px;">
+                Tell us about your procurement goals—we'll reply within one business day with a customized enterprise demonstration.
+            </p>
+            <div style="display: flex; gap: 16px; justify-content: center;">
+                <button class="btn-lime" onclick="openModal()">Start a project →</button>
+                <button class="btn-outline" onclick="openModal()">Contact us</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container footer-inner">
+            <div>
+                <a href="#" class="brand-logo" style="font-size: 18px;">tenderai<span class="brand-dot">.</span></a>
+                <div style="margin-top: 6px;">© 2026 TenderAI Inc. Enterprise Multi-Agent Systems.</div>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/sharma614/Tender_AI" target="_blank" class="footer-link">GitHub</a>
+                <a href="#sandbox" class="footer-link">Sandbox</a>
+                <a href="#calculator" class="footer-link">Calculator</a>
+                <a href="/docs" target="_blank" class="footer-link">API Docs</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Cookie Overlay (Matching Reference Screenshot) -->
+    <div class="cookie-modal" id="cookie-banner">
+        <div class="cookie-title">We value your privacy</div>
+        <div class="cookie-text">
+            We use essential storage to run this site. With your consent we also use analytics and performance monitoring cookies to improve your user experience. Read our <a href="#" style="color: var(--lime-green);">Privacy Policy</a>.
+        </div>
+        <div class="cookie-actions">
+            <button class="btn-outline btn-sm" onclick="closeCookie()">Manage</button>
+            <button class="btn-outline btn-sm" onclick="closeCookie()">Reject all</button>
+            <button class="btn-lime btn-sm" onclick="closeCookie()">Accept all</button>
+        </div>
+    </div>
+
+    <!-- Start a Project Modal -->
+    <div class="modal-overlay" id="contact-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">×</button>
+            <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Start a Project</h3>
+            <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 24px;">Tell us about your team's RFP processing goals.</p>
+
+            <form onsubmit="handleFormSubmit(event)">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" class="form-input" placeholder="Alex Morgan" required>
+                </div>
+                <div class="form-group">
+                    <label>Work Email</label>
+                    <input type="email" class="form-input" placeholder="alex@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Company / Organization</label>
+                    <input type="text" class="form-input" placeholder="Automotive Tech Corp" required>
+                </div>
+                <div class="form-group">
+                    <label>Project Details</label>
+                    <textarea class="form-input" rows="3" placeholder="We evaluate ~30 RFPs monthly and need automated compliance scoring..."></textarea>
+                </div>
+                <button type="submit" class="btn-lime" style="width: 100%; justify-content: center;">Submit Project Request →</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Interactive Scripts -->
+    <script>
+        const presets = [
+            {
+                name: "Automotive AI Supply Chain RFP",
+                summary: "<strong>Project Title:</strong> Automotive Next-Gen Telematics & Autonomous Fleet AI<br><strong>Budget:</strong> $12,500,000 | <strong>Scope:</strong> ISO 26262 functional safety, real-time edge processing across 50,000 connected vehicles.",
+                compliance: "<div style='color:var(--success)'>✓ Turnover: $12.5M Required ($50M Company) — PASS</div><div style='color:var(--success)'>✓ ISO 26262 Automotive Safety — PASS</div><div style='color:var(--success)'>✓ 5+ Years Hardware Experience — PASS</div>",
+                risks: "<div style='color:var(--warning)'>⚠️ Strict Warranty Penalty: 1.0% per week for delivery delays.</div>"
+            },
+            {
+                name: "Smart Infrastructure Surveillance",
+                summary: "<strong>Project Title:</strong> Smart City AI Edge Analytics & Traffic Optimization<br><strong>Budget:</strong> $4,500,000 | <strong>Scope:</strong> Deployment of 150 computer vision edge nodes with zero-trust cloud ingestion.",
+                compliance: "<div style='color:var(--success)'>✓ Turnover: $4.5M Required ($10M Company) — PASS</div><div style='color:var(--success)'>✓ ISO 27001 Security — PASS</div>",
+                risks: "<div style='color:var(--danger)'>🚨 Liquidated Damages: Capped at 10% maximum contract value.</div>"
+            },
+            {
+                name: "Aerospace Cloud Defense Bid",
+                summary: "<strong>Project Title:</strong> Defense Aerospace Cloud Infrastructure & Secure Data Mesh<br><strong>Budget:</strong> $28,000,000 | <strong>Scope:</strong> FedRAMP High / GovCloud container mesh migration.",
+                compliance: "<div style='color:var(--success)'>✓ Bank Solvency Certificate — PASS</div><div style='color:var(--success)'>✓ 8+ Years Defense IT — PASS</div>",
+                risks: "<div style='color:var(--warning)'>⚠️ Mandatory On-Premise Security Clearance Audit within 14 days.</div>"
+            }
+        ];
+
+        function loadPreset(idx) {
+            document.querySelectorAll('.preset-pills .pill').forEach((p, i) => {
+                p.classList.toggle('active', i === idx);
+            });
+            const data = presets[idx];
+            document.getElementById('out-content').innerHTML = `
+                <div style="margin-bottom:16px;">${data.summary}</div>
+                <div style="margin-bottom:16px; background: rgba(255,255,255,0.03); padding:12px; border-radius:10px;">${data.compliance}</div>
+                <div>${data.risks}</div>
+            `;
+        }
+
+        function setOutTab(tab) {
+            document.querySelectorAll('.out-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function triggerFilePicker() {
+            document.getElementById('sandbox-file').click();
+        }
+
+        function handleFileDrop(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('drop-filename').innerText = file.name;
+            }
+        }
+
+        function runRAGSimulation() {
+            const out = document.getElementById('out-content');
+            out.innerHTML = `<div style="color:var(--lime-green)">⏳ Chunking PDF into 1,000 char windows...<br>Vectorizing via HuggingFace all-MiniLM-L6-v2...<br>Executing LangGraph Multi-Agent RAG Orchestration...</div>`;
+            setTimeout(() => {
+                loadPreset(0);
+            }, 1200);
+        }
+
+        function updateROI() {
+            const rfps = parseInt(document.getElementById('slider-rfps').value);
+            const pages = parseInt(document.getElementById('slider-pages').value);
+            const rate = parseInt(document.getElementById('slider-rate').value);
+
+            document.getElementById('val-rfps').innerText = rfps;
+            document.getElementById('val-pages').innerText = pages;
+            document.getElementById('val-rate').innerText = `$${rate}/hr`;
+
+            // Est hours saved = RFPs * (pages * 0.1)
+            const hours = Math.round(rfps * (pages * 0.12));
+            const savings = Math.round(hours * rate);
+
+            document.getElementById('roi-hours').innerText = `${hours.toLocaleString()} hrs`;
+            document.getElementById('roi-savings').innerText = `$${savings.toLocaleString()}`;
+        }
+
+        function closeCookie() {
+            document.getElementById('cookie-banner').style.display = 'none';
+        }
+
+        function openModal() {
+            document.getElementById('contact-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('contact-modal').style.display = 'none';
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            alert("Thank you! Your project request has been received. Our enterprise team will get back to you within 24 hours.");
+            closeModal();
+        }
+
+        // Initialize preset 0 on load
+        loadPreset(0);
+    </script>
+</body>
+</html>

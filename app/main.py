@@ -62,6 +62,9 @@ app.add_middleware(
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
+if os.path.exists("public"):
+    app.mount("/public", StaticFiles(directory="public"), name="public")
+
 
 @app.get("/", response_class=FileResponse, summary="Interactive Dashboard")
 @app.get("/dashboard", response_class=FileResponse, summary="Interactive Dashboard")
@@ -70,6 +73,13 @@ def serve_dashboard():
     if os.path.exists(dashboard_path):
         return FileResponse(dashboard_path)
     return FileResponse("static/dashboard.html")
+
+
+@app.get("/site", response_class=FileResponse, summary="Firebase Marketing Site")
+@app.get("/preview", response_class=FileResponse, summary="Firebase Marketing Site")
+def serve_site():
+    return FileResponse("public/index.html")
+
 
 
 
