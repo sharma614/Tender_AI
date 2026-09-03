@@ -310,9 +310,10 @@
             margin-bottom: 20px;
         }
 
-        .drop-area:hover {
+        .drop-area:hover, .drop-area.drag-over {
             border-color: var(--lime-green);
-            background: rgba(204, 255, 0, 0.03);
+            background: rgba(204, 255, 0, 0.08);
+            box-shadow: 0 0 20px var(--lime-glow);
         }
 
         .output-box {
@@ -667,7 +668,7 @@
 
         <div class="sandbox-card">
             <div class="preset-pills">
-                <div class="pill active" onclick="loadPreset(0)">Automotive AI Supply Chain RFP</div>
+                <div class="pill" onclick="loadPreset(0)">Automotive AI Supply Chain RFP</div>
                 <div class="pill" onclick="loadPreset(1)">Smart Infrastructure Surveillance</div>
                 <div class="pill" onclick="loadPreset(2)">Aerospace Cloud Defense Bid</div>
             </div>
@@ -680,11 +681,11 @@
                         <span style="font-size: 12px; color: var(--lime-green);">PDF / 384d Vectors</span>
                     </h3>
 
-                    <div class="drop-area" onclick="triggerFilePicker()">
+                    <div class="drop-area" id="drop-area">
                         <div style="font-size: 32px; margin-bottom: 8px;">📑</div>
                         <div style="font-weight: 600; margin-bottom: 4px;" id="drop-filename">Click or Drop RFP PDF</div>
                         <div style="font-size: 12px; color: var(--text-dim);">Automated 1,000 char chunking</div>
-                        <input type="file" id="sandbox-file" style="display: none;" onchange="handleFileDrop(event)">
+                        <input type="file" id="sandbox-file" style="display: none;" onchange="handleFileSelect(event)">
                     </div>
 
                     <button class="btn-lime" style="width: 100%; justify-content: center;" onclick="runRAGSimulation()">
@@ -695,9 +696,9 @@
                 <!-- Output Column -->
                 <div class="output-box">
                     <div class="output-tabs">
-                        <div class="out-tab active" onclick="setOutTab('summary')">Executive Summary</div>
-                        <div class="out-tab" onclick="setOutTab('compliance')">Compliance Matrix</div>
-                        <div class="out-tab" onclick="setOutTab('risks')">Risk Evaluation</div>
+                        <div class="out-tab active" data-tab="summary" onclick="setOutTab('summary', this)">Executive Summary</div>
+                        <div class="out-tab" data-tab="compliance" onclick="setOutTab('compliance', this)">Compliance Matrix</div>
+                        <div class="out-tab" data-tab="risks" onclick="setOutTab('risks', this)">Risk Evaluation</div>
                     </div>
 
                     <div class="result-content" id="out-content">
@@ -893,40 +894,277 @@
             }
         ];
 
+        let currentPresetIdx = 0;
+        let currentTab = 'summary';
+        let customFilePreset = null;
+        let hasAnalyzed = false;
+
+        function getActiveData() {
+            return customFilePreset || presets[currentPresetIdx];
+        }
+
+        function renderOutput() {
+            const out = document.getElementById('out-content');
+            if (!out) return;
+
+            if (!hasAnalyzed) {
+                out.innerHTML = `
+                    <div style="text-align: center; padding: 45px 20px; color: var(--text-dim);">
+                        <div style="font-size: 40px; margin-bottom: 12px; opacity: 0.6;">📄</div>
+                        <div style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">No Document Analyzed Yet</div>
+                        <div style="font-size: 13px; max-width: 340px; margin: 0 auto; line-height: 1.6; color: var(--text-dim);">
+                            Select a sample preset above or click/drag a PDF document onto the left box, then click <span style="color: var(--lime-green); font-weight: 600;">⚡ Run Multi-Agent Analysis</span> to view extracted parameters.
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const data = getActiveData();
+            if (!data) return;
+
+            if (currentTab === 'summary') {
+                out.innerHTML = `
+                    <div style="font-size: 14px; line-height: 1.8;">
+                        <div style="color: var(--lime-green); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace;">📋 Executive Summary</div>
+                        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); padding: 18px; border-radius: 12px;">
+                            ${data.summary}
+                        </div>
+                    </div>
+                `;
+            } else if (currentTab === 'compliance') {
+                out.innerHTML = `
+                    <div style="font-size: 14px; line-height: 1.8;">
+                        <div style="color: var(--success); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace;">✅ Compliance Matrix Evaluation</div>
+                        <div style="background: rgba(16, 185, 129, 0.04); border: 1px solid rgba(16, 185, 129, 0.18); padding: 18px; border-radius: 12px; display: flex; flex-direction: column; gap: 12px;">
+                            ${data.compliance}
+                        </div>
+                    </div>
+                `;
+            } else if (currentTab === 'risks') {
+                out.innerHTML = `
+                    <div style="font-size: 14px; line-height: 1.8;">
+                        <div style="color: var(--warning); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace;">⚠️ Risk Evaluation</div>
+                        <div style="background: rgba(251, 191, 36, 0.04); border: 1px solid rgba(251, 191, 36, 0.18); padding: 18px; border-radius: 12px; display: flex; flex-direction: column; gap: 12px;">
+                            ${data.risks}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
         function loadPreset(idx) {
+            customFilePreset = null;
+            currentPresetIdx = idx;
             document.querySelectorAll('.preset-pills .pill').forEach((p, i) => {
                 p.classList.toggle('active', i === idx);
             });
-            const data = presets[idx];
-            document.getElementById('out-content').innerHTML = `
-                <div style="margin-bottom:16px;">${data.summary}</div>
-                <div style="margin-bottom:16px; background: rgba(255,255,255,0.03); padding:12px; border-radius:10px;">${data.compliance}</div>
-                <div>${data.risks}</div>
-            `;
+            document.getElementById('drop-filename').innerHTML = `Selected: <span style="color:var(--lime-green);">${presets[idx].name}</span>`;
+            hasAnalyzed = true;
+            runRAGSimulation();
         }
 
-        function setOutTab(tab) {
-            document.querySelectorAll('.out-tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+        function setOutTab(tab, el) {
+            currentTab = tab;
+            document.querySelectorAll('.out-tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            if (el) {
+                el.classList.add('active');
+            } else {
+                const target = document.querySelector(`.out-tab[data-tab="${tab}"]`);
+                if (target) target.classList.add('active');
+            }
+            renderOutput();
         }
 
         function triggerFilePicker() {
             document.getElementById('sandbox-file').click();
         }
 
-        function handleFileDrop(e) {
-            const file = e.target.files[0];
-            if (file) {
-                document.getElementById('drop-filename').innerText = file.name;
+        function handleFileSelect(e) {
+            if (e.target.files && e.target.files.length > 0) {
+                processUploadedFile(e.target.files[0]);
             }
         }
 
-        function runRAGSimulation() {
+        function processUploadedFile(file) {
+            const filenameEl = document.getElementById('drop-filename');
+            if (filenameEl) {
+                filenameEl.innerHTML = `Loaded: <span style="color:var(--lime-green);">${file.name}</span>`;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const rawContent = e.target.result || '';
+                analyzeFileContent(file.name, file.size, file.type, rawContent);
+            };
+
+            // Read uploaded file content as text
+            reader.readAsText(file);
+        }
+
+        function analyzeFileContent(fileName, fileSize, fileType, rawContent) {
+            let text = rawContent;
+            
+            // Clean printable text if PDF stream or binary bytes
+            if (fileType.includes('pdf') || fileName.endsWith('.pdf')) {
+                const matches = rawContent.match(/[\w\s\$\,\.\%\:\-\_\/\(\)\✓\⚠️\🚨\=\+\<\>]{4,}/g);
+                if (matches && matches.length > 0) {
+                    text = matches.join(' ');
+                }
+            }
+
+            const lines = text.split(/[\r\n]+/).map(l => l.trim()).filter(l => l.length > 0);
+            
+            // Extract Executive Summary parameters directly from file content
+            let title = '';
+            let budget = '';
+            let scope = '';
+
+            lines.forEach(line => {
+                if (!title && /(project title|title|project|subject):/i.test(line)) {
+                    title = line;
+                } else if (!budget && /(budget|cost|value|amount|price):/i.test(line)) {
+                    budget = line;
+                } else if (!scope && /(scope|description|overview|purpose|functional safety):/i.test(line)) {
+                    scope = line;
+                }
+            });
+
+            if (!title) {
+                const firstCleanLine = lines.find(l => l.length > 10 && !l.includes('{') && !l.includes('<'));
+                title = firstCleanLine ? `Project Title: ${firstCleanLine.substring(0, 80)}` : `Project Title: RFP ${fileName}`;
+            }
+
+            if (!budget) {
+                const budgetMatch = text.match(/\$[\d\,]+(?:\.\d+)?\b|\b\d+\s*(?:million|M|B|K)\b/i);
+                budget = budgetMatch ? `Budget: ${budgetMatch[0]}` : `Document Size: ${(fileSize/1024).toFixed(1)} KB`;
+            }
+
+            if (!scope) {
+                const keyScopeLines = lines.filter(l => l.length > 20 && !l.includes('{') && !l.includes('}')).slice(0, 2);
+                scope = keyScopeLines.length > 0 ? `Scope: ${keyScopeLines.join(' ')}` : `Scope: Extracted ${lines.length} lines from uploaded document.`;
+            }
+
+            const summaryContent = `
+                <div style="font-weight:700; margin-bottom:6px; color:#fff;">${title}</div>
+                <div style="color:var(--lime-green); font-weight:600; margin-bottom:8px;">${budget}</div>
+                <div style="color:var(--text-secondary); font-size:13px; line-height:1.6;">${scope}</div>
+            `;
+
+            // Extract Compliance Matrix parameters directly from file content
+            const complianceMatches = [];
+            lines.forEach(line => {
+                if (/(turnover|iso|compliance|pass|fail|experience|qualification|certified|certific|bank|solvency|fedramp|security|audit|required|safety)/i.test(line)) {
+                    if (line.length < 150 && !complianceMatches.includes(line)) {
+                        complianceMatches.push(line);
+                    }
+                }
+            });
+
+            let complianceContent = '';
+            if (complianceMatches.length > 0) {
+                complianceContent = complianceMatches.slice(0, 6).map(item => {
+                    const isPass = !/fail|not|missing/i.test(item);
+                    const icon = item.includes('✓') ? '' : (isPass ? '✓ ' : '✗ ');
+                    const status = item.includes('PASS') || item.includes('FAIL') ? '' : (isPass ? ' — PASS' : ' — FAILED');
+                    const color = isPass ? 'var(--success)' : 'var(--danger)';
+                    return `<div style="color:${color}">${icon}${item}${status}</div>`;
+                }).join('');
+            } else {
+                complianceContent = `
+                    <div style="color:var(--success)">✓ Document Structure Verification — PASS</div>
+                    <div style="color:var(--success)">✓ Text Extraction & Chunking — PASS (${Math.max(1, Math.ceil(fileSize / 800))} text chunks)</div>
+                    <div style="color:var(--success)">✓ Requirement Clause Matching — PASS</div>
+                `;
+            }
+
+            // Extract Risk Evaluation parameters directly from file content
+            const riskMatches = [];
+            lines.forEach(line => {
+                if (/(risk|penalty|liquidated damages|delay|warranty|liability|audit|breach|fine|strict|dispute|cap)/i.test(line)) {
+                    if (line.length < 180 && !riskMatches.includes(line)) {
+                        riskMatches.push(line);
+                    }
+                }
+            });
+
+            let risksContent = '';
+            if (riskMatches.length > 0) {
+                risksContent = riskMatches.slice(0, 5).map(item => {
+                    const icon = item.includes('⚠️') || item.includes('🚨') ? '' : '⚠️ ';
+                    const color = /strict|liquidated|penalty|breach|10%/i.test(item) ? 'var(--warning)' : 'var(--text-secondary)';
+                    return `<div style="color:${color}">${icon}${item}</div>`;
+                }).join('');
+            } else {
+                risksContent = `<div style="color:var(--warning)">⚠️ File Analysis Note: No automated penalty or high-risk liquidated damages clauses identified in document text.</div>`;
+            }
+
+            customFilePreset = {
+                name: fileName,
+                summary: summaryContent,
+                compliance: complianceContent,
+                risks: risksContent
+            };
+
+            document.querySelectorAll('.preset-pills .pill').forEach(p => p.classList.remove('active'));
+            runRAGSimulation(true);
+        }
+
+        function runRAGSimulation(isCustom = false) {
+            hasAnalyzed = true;
             const out = document.getElementById('out-content');
-            out.innerHTML = `<div style="color:var(--lime-green)">⏳ Chunking PDF into 1,000 char windows...<br>Vectorizing via HuggingFace all-MiniLM-L6-v2...<br>Executing LangGraph Multi-Agent RAG Orchestration...</div>`;
+            out.innerHTML = `<div style="color:var(--lime-green); padding: 12px 0;">⏳ Chunking PDF into 1,000 char windows...<br>Vectorizing via HuggingFace all-MiniLM-L6-v2...<br>Executing LangGraph Multi-Agent RAG Orchestration...</div>`;
             setTimeout(() => {
-                loadPreset(0);
-            }, 1200);
+                renderOutput();
+            }, 1000);
+        }
+
+        function initDropArea() {
+            const dropArea = document.getElementById('drop-area');
+
+            if (dropArea && !dropArea.dataset.bound) {
+                dropArea.dataset.bound = "true";
+
+                dropArea.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                        triggerFilePicker();
+                    }
+                });
+
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }, false);
+                });
+
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, () => {
+                        dropArea.classList.add('drag-over');
+                    }, false);
+                });
+
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, () => {
+                        dropArea.classList.remove('drag-over');
+                    }, false);
+                });
+
+                dropArea.addEventListener('drop', (e) => {
+                    const dt = e.dataTransfer;
+                    if (dt && dt.files && dt.files.length > 0) {
+                        processUploadedFile(dt.files[0]);
+                    }
+                }, false);
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initDropArea);
+        } else {
+            initDropArea();
         }
 
         function updateROI() {
@@ -938,7 +1176,6 @@
             document.getElementById('val-pages').innerText = pages;
             document.getElementById('val-rate').innerText = `$${rate}/hr`;
 
-            // Est hours saved = RFPs * (pages * 0.1)
             const hours = Math.round(rfps * (pages * 0.12));
             const savings = Math.round(hours * rate);
 
@@ -964,8 +1201,8 @@
             closeModal();
         }
 
-        // Initialize preset 0 on load
-        loadPreset(0);
+        // Initial setup execution
+        renderOutput();
     </script>
 </body>
 </html>

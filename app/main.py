@@ -28,16 +28,12 @@ from .schemas import (
 from .services.pdf_processor import PDFProcessor
 
 # ---------------------------------------------------------------------------
-# DB bootstrap — ensure pgvector extension + all tables exist at startup
+# Schema is managed by Alembic — run `alembic upgrade head` before starting.
+#
+# The previous `Base.metadata.create_all()` bootstrap was removed because it
+# cannot ALTER existing tables, so it silently skipped new columns on an
+# already-created database and diverged from the migration history.
 # ---------------------------------------------------------------------------
-try:
-    with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
-    Base.metadata.create_all(bind=engine)
-    print("Database tables initialized successfully.")
-except Exception as e:
-    print(f"Warning: Database initialization failed. Error: {e}")
 
 # ---------------------------------------------------------------------------
 # FastAPI app

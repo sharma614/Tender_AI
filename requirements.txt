@@ -3,13 +3,26 @@ uvicorn>=0.20.0
 python-multipart>=0.0.6
 pymupdf>=1.22.0
 sqlalchemy>=2.0.0
+alembic>=1.13.0            # versioned schema migrations (replaces create_all bootstrap)
 pgvector>=0.2.0
 psycopg2-binary>=2.9.6
-sentence-transformers>=2.2.2
+
+# --- Embeddings -------------------------------------------------------------
+# Pinned deliberately: transformers 5.x requires torch>=2.5. Leaving these
+# unpinned silently breaks `import sentence_transformers` on torch 2.2/2.4 envs,
+# which disables the whole embedding + retrieval path. Reproducible evaluation
+# numbers require a pinned stack.
+sentence-transformers>=3.0,<4.0
+transformers>=4.40,<5.0
+
 pydantic>=2.0.0
 google-generativeai>=0.7.0
 python-dotenv>=1.0.0
-celery[redis,sqs]>=5.3.0  # [redis] for local dev, [sqs] for AWS
+langgraph>=0.2.0           # StateGraph orchestrator with parallel agent fan-out
+celery[redis,sqs]>=5.3.0   # [redis] for local dev, [sqs] for AWS
 redis>=5.0.0
 boto3>=1.34.0              # AWS SDK — S3 download, SQS publish from tasks
 kombu[sqs]>=5.3.0          # Celery SQS transport (kombu is Celery's messaging layer)
+
+# --- Evaluation harness -----------------------------------------------------
+jsonschema>=4.0            # validates corpus annotation files in `--mode smoke`

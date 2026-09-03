@@ -1,5 +1,5 @@
 ###############################################################################
-# Dockerfile.api — FastAPI container for ECS Fargate
+# Dockerfile.api — FastAPI container for ECS Fargate / Docker Compose
 #
 # Build: docker build -f Dockerfile.api -t tenderai-api:latest .
 # Run locally: docker run -p 8000:8000 --env-file .env tenderai-api:latest
@@ -10,11 +10,13 @@ FROM python:3.11-slim AS dependencies
 
 WORKDIR /deps
 
-# Install system packages needed by PyMuPDF and psycopg2
+# Install system packages needed by PyMuPDF, psycopg2, and Tesseract OCR
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -30,6 +32,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from the dependency stage
@@ -46,9 +50,9 @@ USER appuser
 
 EXPOSE 8000
 
-# Health check — ECS uses this before registering the task with the ALB
+# Health check — ECS / Docker uses this before registering the service
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
-# Start Uvicorn with 2 workers (Fargate 0.5 vCPU = 1 core, 2 workers is safe)
+# Start Uvicorn with 2 workers
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

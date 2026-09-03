@@ -1,0 +1,174 @@
+{
+  "doc_id": "synth-012",
+  "pdf": "pdfs/synth-012.pdf",
+  "source": "synthetic",
+  "page_count": 13,
+  "generator_note": "Synthetically generated clean-text PDF. Does not represent the scanned pages, malformed tables or OCR noise present in real tender documents.",
+  "fields": {
+    "tender_title": "Appointment of Agency for Municipal Solid Waste Processing Facility",
+    "submission_deadline": "18 May 2027 14:30 IST",
+    "minimum_turnover": {
+      "value": 100000000,
+      "currency": "INR",
+      "raw": "Rs. 1000 lakhs"
+    },
+    "earnest_money_deposit_emd": {
+      "value": 1500000,
+      "currency": "INR",
+      "raw": "INR 15,00,000"
+    },
+    "document_fee": {
+      "value": 5000,
+      "currency": "INR",
+      "raw": "Rs. 5,000"
+    },
+    "solvency_certificate_required": true,
+    "experience_years": 5,
+    "contract_duration_months": 18,
+    "bid_validity_days": 150,
+    "warranty_years": 5,
+    "liquidated_damages_rate": "0.25%",
+    "liquidated_damages_cap": "10%",
+    "performance_guarantee_pct": "3%",
+    "liability_cap": "150%",
+    "joint_ventures_allowed": true,
+    "subcontracting_limit": "20%",
+    "arbitration_seat": "New Delhi",
+    "bid_language": "English"
+  },
+  "questions": [
+    {
+      "id": 1,
+      "query": "What is the minimum annual turnover requirement?",
+      "gold_span": "The bidder shall have achieved a minimum average annual turnover of Rs. 1000 lakhs in each of the last three audited financial years.",
+      "gold_page": 1,
+      "field": "minimum_turnover"
+    },
+    {
+      "id": 2,
+      "query": "What is the Earnest Money Deposit amount?",
+      "gold_span": "Bids shall be accompanied by an Earnest Money Deposit (EMD) of INR 15,00,000, furnished as a demand draft or an unconditional bank guarantee.",
+      "gold_page": 1,
+      "field": "emd"
+    },
+    {
+      "id": 3,
+      "query": "Is a bank solvency certificate required?",
+      "gold_span": "A bank solvency certificate issued by a scheduled commercial bank within the preceding six months is mandatory and shall be enclosed with the technical bid.",
+      "gold_page": 1,
+      "field": "solvency_certificate"
+    },
+    {
+      "id": 4,
+      "query": "What is the bid validity period?",
+      "gold_span": "Bids shall remain valid for a period of 150 days from the date of opening of the technical bid.",
+      "gold_page": 1,
+      "field": "bid_validity"
+    },
+    {
+      "id": 5,
+      "query": "What is the minimum years of experience required?",
+      "gold_span": "The bidder shall have a minimum of 5 years of experience in executing projects of a similar nature in the field of Municipal Works.",
+      "gold_page": 3,
+      "field": "experience_years"
+    },
+    {
+      "id": 6,
+      "query": "Which ISO certifications are required?",
+      "gold_span": "The bidder shall hold valid ISO 9001:2015 and ISO 14001:2015 certifications as on the date of bid submission.",
+      "gold_page": 3,
+      "field": "iso_certifications"
+    },
+    {
+      "id": 7,
+      "query": "Are joint ventures or consortiums allowed?",
+      "gold_span": "Joint ventures and consortium bids are permitted, subject to a maximum of two members and submission of a registered joint venture agreement.",
+      "gold_page": 3,
+      "field": "joint_ventures"
+    },
+    {
+      "id": 8,
+      "query": "Is sub-contracting allowed and to what extent?",
+      "gold_span": "Sub-contracting of the awarded work is permitted only up to 20% of the total contract value, and only with the prior written approval of the Purchaser.",
+      "gold_page": 3,
+      "field": "subcontracting"
+    },
+    {
+      "id": 9,
+      "query": "What is the proposal submission deadline?",
+      "gold_span": "The last date and time for submission of bids is 18 May 2027 at 14:30 hours IST.",
+      "gold_page": 5,
+      "field": "submission_deadline"
+    },
+    {
+      "id": 10,
+      "query": "When is the pre-bid meeting scheduled?",
+      "gold_span": "A pre-bid meeting shall be convened on 22 July 2027 at the office of the National Institute of Advanced Systems.",
+      "gold_page": 5,
+      "field": "prebid_date"
+    },
+    {
+      "id": 11,
+      "query": "What is the tender document fee?",
+      "gold_span": "A non-refundable tender document fee of Rs. 5,000 shall be paid online at the time of bid submission.",
+      "gold_page": 5,
+      "field": "document_fee"
+    },
+    {
+      "id": 12,
+      "query": "What is the liquidated damages rate for delay?",
+      "gold_span": "In the event of delay in completion, liquidated damages shall be levied at 0.25% of the contract value per month of delay, subject to an overall ceiling of 10% of the total contract value.",
+      "gold_page": 7,
+      "field": "liquidated_damages"
+    },
+    {
+      "id": 13,
+      "query": "What is the performance bank guarantee requirement?",
+      "gold_span": "The successful bidder shall furnish a performance bank guarantee equal to 3% of the contract value, valid for 30 months from the date of award.",
+      "gold_page": 7,
+      "field": "performance_guarantee"
+    },
+    {
+      "id": 14,
+      "query": "What is the warranty period required?",
+      "gold_span": "All supplied equipment shall carry a comprehensive on-site warranty of 5 years from the date of successful commissioning.",
+      "gold_page": 7,
+      "field": "warranty_period"
+    },
+    {
+      "id": 15,
+      "query": "What is the limitation of liability cap?",
+      "gold_span": "The aggregate liability of the contractor under this contract shall not exceed 150% of the total contract value, save in cases of fraud, wilful misconduct or breach of confidentiality obligations.",
+      "gold_page": 7,
+      "field": "liability_cap"
+    },
+    {
+      "id": 16,
+      "query": "What is the dispute resolution mechanism?",
+      "gold_span": "Any dispute arising out of or in connection with this contract shall be referred to arbitration under the Indian Council of Arbitration Rules, with New Delhi as the seat of arbitration.",
+      "gold_page": 9,
+      "field": "dispute_resolution"
+    },
+    {
+      "id": 17,
+      "query": "In what language must bid documents be submitted?",
+      "gold_span": "All bid documents, correspondence and deliverables shall be submitted in English.",
+      "gold_page": 9,
+      "field": "bid_language"
+    },
+    {
+      "id": 18,
+      "query": "What is the payment milestone schedule?",
+      "gold_span": "Payments shall be released against milestones as follows: 25% as mobilisation advance against an equivalent bank guarantee, 60% on delivery and installation, and the balance 15% on final acceptance testing and handover.",
+      "gold_page": 11,
+      "field": "payment_schedule"
+    },
+    {
+      "id": 19,
+      "query": "What is the contract execution duration?",
+      "gold_span": "The contract shall be executed over a period of 18 months from the date of issue of the letter of award.",
+      "gold_page": 11,
+      "field": "contract_duration"
+    }
+  ]
+}

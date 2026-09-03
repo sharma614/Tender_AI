@@ -1,8 +1,14 @@
 import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
-from pgvector.sqlalchemy import Vector
-from .database import Base
+from .database import Base, DATABASE_URL
+
+if DATABASE_URL.startswith("sqlite"):
+    EmbeddingType = JSON
+else:
+    from pgvector.sqlalchemy import Vector
+    EmbeddingType = Vector(384)
+
 
 class Tender(Base):
     __tablename__ = "tenders"
@@ -16,6 +22,7 @@ class Tender(Base):
     summary = Column(JSON, nullable=True)
     risks = Column(JSON, nullable=True)
     compliance_status = Column(JSON, nullable=True)
+    details = Column(JSON, nullable=True)
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
@@ -30,12 +37,26 @@ class TenderChunk(Base):
     tender_id = Column(Integer, ForeignKey("tenders.id"), nullable=False)
     chunk_index = Column(Integer, nullable=False)
     text_content = Column(Text, nullable=False)
-    embedding = Column(Vector(384), nullable=True)  # MiniLM-L6-v2 is 384 dimensions
+    embedding = Column(EmbeddingType, nullable=True)
+
+
+    # --- Provenance -------------------------------------------------------
+    # Needed to cite a retrieved chunk back to a location in the source PDF.
+    # char_start is the chunk's offset into Tender.raw_text; page_number is
+    # derived from the "--- Page N ---" markers PDFProcessor injects.
+    char_start = Column(Integer, nullable=True)
+    page_number = Column(Integer, nullable=True, index=True)
 
     tender = relationship("Tender", back_populates="chunks")
 
 
 class ToolCall(Base):
+    """
+    Audit + observability record for a single agent LLM invocation.
+
+    The latency/token/status columns are what /admin/metrics aggregates; without
+    them the endpoint can only count rows, not report cost or performance.
+    """
     __tablename__ = "tool_calls"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -44,6 +65,16 @@ class ToolCall(Base):
     tool_name = Column(String, nullable=False)
     input_arguments = Column(JSON, nullable=True)
     output_response = Column(JSON, nullable=True)
+
+    # --- Observability ----------------------------------------------------
+    model_name = Column(String, nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    total_tokens = Column(Integer, nullable=True)
+    status = Column(String, default="success", index=True, nullable=True)  # success|error
+    error_message = Column(Text, nullable=True)
+
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     tender = relationship("Tender", back_populates="tool_calls")

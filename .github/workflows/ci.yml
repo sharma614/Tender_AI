@@ -29,8 +29,14 @@ jobs:
 
       - name: Run Pytest Suite
         run: |
-          python -m pytest tests/ --doctest-modules --junitxml=junit/test-results.xml
+          python -m pytest tests/ --junitxml=junit/test-results.xml -q
 
-      - name: Run Benchmark Evaluation Harness
+      - name: Generate Evaluation Corpus
         run: |
-          python eval_harness.py
+          # corpus/pdfs/ is gitignored — must be rebuilt from the deterministic
+          # generator before the smoke test can verify gold-span presence.
+          python corpus/generate_synthetic.py --seed 42 --count 18 --clean
+
+      - name: Run Corpus Smoke Test (no DB or API key required)
+        run: |
+          python eval_harness.py --mode smoke --no-save

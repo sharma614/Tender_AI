@@ -25,5 +25,9 @@ lambda/*.zip
 # Docker
 .dockerignore
 
-# Test artifacts
+# Test artifacts & local dev databases
 *.log
+*.db
+eval_results/
+.firebase/
+

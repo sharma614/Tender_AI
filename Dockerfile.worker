@@ -1,17 +1,11 @@
 ###############################################################################
-# Dockerfile.worker — Celery Worker container for ECS Fargate
+# Dockerfile.worker — Celery Worker container for ECS Fargate / Docker Compose
 #
 # Build: docker build -f Dockerfile.worker -t tenderai-worker:latest .
 # Run locally: docker run --env-file .env tenderai-worker:latest
-#
-# Difference from Dockerfile.api:
-#   - Includes sentence-transformers + torch (heavier ML deps)
-#   - No exposed port (worker has no HTTP server)
-#   - Starts with `celery worker` instead of `uvicorn`
-#   - Uses more CPU/memory in Fargate (1 vCPU / 2GB vs 0.5 vCPU / 1GB for API)
 ###############################################################################
 
-# ---- Stage 1: Dependencies (includes heavy ML packages) ----
+# ---- Stage 1: Dependencies ----
 FROM python:3.11-slim AS dependencies
 
 WORKDIR /deps
@@ -21,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -30,8 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
-# Pre-download the SentenceTransformer model at build time so the worker
-# starts instantly on Fargate without fetching the model on first request
+# Pre-download the SentenceTransformer model at build time
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 # ---- Stage 2: Runtime ----
@@ -42,12 +37,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages (including downloaded model cache)
 COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=dependencies /usr/local/bin /usr/local/bin
-# Copy the pre-downloaded HuggingFace model cache
 COPY --from=dependencies /root/.cache /root/.cache
 
 # Copy application code
@@ -57,14 +53,11 @@ COPY app/ ./app/
 RUN useradd --no-create-home --shell /bin/false appuser && \
     chown -R appuser:appuser /app
     
-# Note: /root/.cache is owned by root — the appuser needs access to model cache
 RUN chown -R appuser:appuser /root/.cache 2>/dev/null || true
 
 USER appuser
 
-# Celery worker with 1 concurrent process per container.
-# Scale horizontally by adding more Fargate tasks (worker desired_count).
-# --without-heartbeat: better for Fargate where tasks are short-lived
+# Celery worker with 1 concurrent process per container
 CMD ["celery", "-A", "app.worker.celery_app", "worker", \
      "--loglevel=info", "--concurrency=1", \
      "--without-heartbeat", "--without-gossip", "--without-mingle"]
