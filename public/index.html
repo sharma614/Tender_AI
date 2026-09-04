@@ -1014,13 +1014,17 @@
             
             // Clean printable text if PDF stream or binary bytes
             if (fileType.includes('pdf') || fileName.endsWith('.pdf')) {
-                const matches = rawContent.match(/[\w\s\$\,\.\%\:\-\_\/\(\)\✓\⚠️\🚨\=\+\<\>]{4,}/g);
+                text = text.replace(/% Written by MuPDF[^\r\n]*/gi, '');
+                text = text.replace(/%PDF-\d\.\d[^\r\n]*/gi, '');
+                const matches = text.match(/[A-Za-z0-9\s\$\,\.\:\-\_\/\(\)\✓\⚠️\🚨\=\+\<\>]{5,}/g);
                 if (matches && matches.length > 0) {
                     text = matches.join(' ');
                 }
             }
 
-            const lines = text.split(/[\r\n]+/).map(l => l.trim()).filter(l => l.length > 0);
+            const lines = text.split(/[\r\n]+/)
+                .map(l => l.trim())
+                .filter(l => l.length > 0 && !l.startsWith('%') && !l.toLowerCase().includes('mupdf') && !l.includes('endobj') && !l.includes('stream'));
             
             // Extract Executive Summary parameters directly from file content
             let title = '';
@@ -1038,8 +1042,9 @@
             });
 
             if (!title) {
-                const firstCleanLine = lines.find(l => l.length > 10 && !l.includes('{') && !l.includes('<'));
-                title = firstCleanLine ? `Project Title: ${firstCleanLine.substring(0, 80)}` : `Project Title: RFP ${fileName}`;
+                const firstCleanLine = lines.find(l => l.length > 10 && !l.includes('{') && !l.includes('<') && !l.startsWith('%') && !l.toLowerCase().includes('mupdf'));
+                const cleanName = fileName.replace(/\.pdf$/i, '').replace(/[-_]/g, ' ');
+                title = firstCleanLine ? `Project Title: ${firstCleanLine.substring(0, 80)}` : `Project Title: ${cleanName.toUpperCase()}`;
             }
 
             if (!budget) {
@@ -1048,8 +1053,8 @@
             }
 
             if (!scope) {
-                const keyScopeLines = lines.filter(l => l.length > 20 && !l.includes('{') && !l.includes('}')).slice(0, 2);
-                scope = keyScopeLines.length > 0 ? `Scope: ${keyScopeLines.join(' ')}` : `Scope: Extracted ${lines.length} lines from uploaded document.`;
+                const keyScopeLines = lines.filter(l => l.length > 20 && !l.includes('{') && !l.includes('}') && !l.startsWith('%') && !l.toLowerCase().includes('mupdf')).slice(0, 2);
+                scope = keyScopeLines.length > 0 ? `Scope: ${keyScopeLines.join(' ')}` : `Scope: Parsed ${lines.length} content lines from ${fileName}.`;
             }
 
             const summaryContent = `
