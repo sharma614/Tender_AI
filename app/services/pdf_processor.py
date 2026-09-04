@@ -52,6 +52,8 @@ class PDFProcessor:
                         logger.warning(f"OCR fallback failed for page {page_num + 1}: {e}")
 
                 if page_text:
+                    # Strip PyMuPDF software header artifacts
+                    page_text = re.sub(r"(?m)^\s*% Written by MuPDF[^\n]*\n?", "", page_text)
                     text += f"--- Page {page_num + 1} ---\n{page_text}\n"
 
         return text

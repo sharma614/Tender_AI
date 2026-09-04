@@ -631,6 +631,7 @@ def generate_document(rng: random.Random, doc_id: str, use_table: bool) -> Dict[
     # Tail filler so the last real answer is not always at the very end.
     sec_filler(w, spec, qs, rng, filler_headings[-1], rng.randint(28, 40))
 
+    w.doc.set_metadata({"title": spec["title"], "producer": "TenderAI Synthetic PDF Engine"})
     PDF_DIR.mkdir(parents=True, exist_ok=True)
     pdf_path = PDF_DIR / f"{doc_id}.pdf"
     page_count = w.doc.page_count
