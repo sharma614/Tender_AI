@@ -158,6 +158,13 @@
             letter-spacing: -1px;
         }
 
+        .metric-sub {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+
         /* Main Content Layout */
         .main-grid {
             display: grid;
@@ -413,19 +420,23 @@
     <div class="metrics-grid">
         <div class="metric-card">
             <div class="metric-label">Tenders Analyzed</div>
-            <div class="metric-value" id="metric-tenders">24</div>
+            <div class="metric-value" id="metric-tenders">&mdash;</div>
+            <div class="metric-sub">Live from /admin/metrics</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Agent Calls Logged</div>
+            <div class="metric-value" id="metric-calls">&mdash;</div>
+            <div class="metric-sub">Live from /admin/metrics</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Retrieval Recall@5</div>
-            <div class="metric-value" style="color: var(--success)">100.0%</div>
+            <div class="metric-value">77.5%</div>
+            <div class="metric-sub">Offline benchmark, 2026-09-04 &middot; 18 synthetic docs / 342 questions / 996 chunks &middot; SQLite cosine fallback, not pgvector</div>
         </div>
         <div class="metric-card">
-            <div class="metric-label">Citation Precision</div>
-            <div class="metric-value" style="color: var(--primary)">96.5%</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Queue Latency (Avg)</div>
-            <div class="metric-value" style="color: var(--accent)">1.2s</div>
+            <div class="metric-label">Retrieval Latency (mean)</div>
+            <div class="metric-value">19.9 ms</div>
+            <div class="metric-sub">Same benchmark run &middot; p95 25.5 ms &middot; vector search only, excludes LLM calls</div>
         </div>
     </div>
 
@@ -478,6 +489,7 @@
 
                 <div class="tabs">
                     <div class="tab active" onclick="switchTab('summary')">Executive Summary</div>
+                    <div class="tab" onclick="switchTab('bid')">🎯 Bid/No-Bid Decision</div>
                     <div class="tab" onclick="switchTab('compliance')">Compliance Checklist</div>
                     <div class="tab" onclick="switchTab('risks')">Risk Analysis</div>
                     <div class="tab" onclick="switchTab('raw')">Raw JSON Data</div>
@@ -490,7 +502,14 @@
                     </div>
                 </div>
 
-                <!-- Tab 2: Compliance Checklist -->
+                <!-- Tab 2: Bid/No-Bid Decision -->
+                <div id="tab-bid" style="display: none;">
+                    <div id="bid-decision-container">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px;">No Bid/No-Bid evaluation active yet.</div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Compliance Checklist -->
                 <div id="tab-compliance" style="display: none;">
                     <table class="compliance-table">
                         <thead>
@@ -509,14 +528,14 @@
                     </table>
                 </div>
 
-                <!-- Tab 3: Risk Analysis -->
+                <!-- Tab 4: Risk Analysis -->
                 <div id="tab-risks" style="display: none;">
                     <div id="risks-container">
                         <div style="text-align: center; color: var(--text-muted); padding: 20px;">No risks evaluated yet.</div>
                     </div>
                 </div>
 
-                <!-- Tab 4: Raw JSON Data -->
+                <!-- Tab 5: Raw JSON Data -->
                 <div id="tab-raw" style="display: none;">
                     <pre style="background: rgba(0,0,0,0.4); padding: 16px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; max-height: 400px; overflow-y: auto;" id="raw-json">{}</pre>
                 </div>
@@ -542,12 +561,16 @@
 
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            ['summary', 'compliance', 'risks', 'raw'].forEach(t => {
-                document.getElementById('tab-' + t).style.display = (t === tabName) ? 'block' : 'none';
+            ['summary', 'bid', 'compliance', 'risks', 'raw'].forEach(t => {
+                const el = document.getElementById('tab-' + t);
+                if (el) el.style.display = (t === tabName) ? 'block' : 'none';
             });
             event.target.classList.add('active');
         }
 
+        // Illustrative UI walkthrough with a fixed script and hardcoded results.
+        // It does NOT call the backend and its numbers are not measurements —
+        // it exists to show the panel layout without requiring a live API key.
         function runSyntheticDemo() {
             const jobCard = document.getElementById('job-card');
             const progressFill = document.getElementById('progress-fill');
@@ -586,6 +609,32 @@
                 This tender mandates an enterprise-grade AI edge-video surveillance platform across 150 intersections. 
                 The system requires real-time anomaly detection, zero-trust cloud integration, and 99.9% uptime compliance. 
                 Our automated multi-agent analysis confirms high technical alignment with 1 potential penalty risk regarding late delivery clauses.
+            `;
+
+            document.getElementById('bid-decision-container').innerHTML = `
+                <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 20px; border-radius: 12px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-size: 20px; font-weight: 700; color: var(--success);">🎯 GO_BID RECOMMENDATION</span>
+                        <span style="font-size: 24px; font-weight: 700; color: var(--text-main);">Score: 86.5<span style="font-size: 14px; color: var(--text-muted);">/100</span></span>
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-main); margin-bottom: 10px;">
+                        GO_BID recommended. Strong alignment with company profile, mandatory compliance met, and manageable risk penalty (10 pts).
+                    </div>
+                    <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-muted);">
+                        <div><strong>Calibrated Confidence:</strong> <span style="color: var(--success);">92.5%</span></div>
+                        <div><strong>Compliance Sub-Score:</strong> 100%</div>
+                        <div><strong>Technical Fit:</strong> 90.0%</div>
+                        <div><strong>Risk Penalty:</strong> -10.0 pts</div>
+                    </div>
+                </div>
+                <div style="font-size: 13px; color: var(--text-muted);">
+                    <strong>Key Decision Drivers:</strong>
+                    <ul style="margin-top: 6px; padding-left: 20px; line-height: 1.6;">
+                        <li>Passes mandatory compliance benchmarks.</li>
+                        <li>Company annual turnover ($10M) clears required USD 3M minimum.</li>
+                        <li>Identified 1 Medium-severity risk item (liquidated damages clause).</li>
+                    </ul>
+                </div>
             `;
 
             document.getElementById('compliance-tbody').innerHTML = `
@@ -628,13 +677,14 @@
             `;
 
             document.getElementById('raw-json').innerText = JSON.stringify({
+                _note: "ILLUSTRATIVE DEMO DATA — not the output of a real analysis run. " +
+                       "This payload is hardcoded in static/dashboard.html to show the response " +
+                       "shape. Upload a PDF to get real output. Measured benchmark numbers live " +
+                       "in eval_results/ and the README, not here.",
                 tender_id: "demo-tender-001",
                 job_id: "job-synthetic-demo",
                 status: "completed",
-                agents: ["ExtractionAgent", "SummarizerAgent", "RiskAgent", "ComplianceAgent"],
-                execution_time_seconds: 2.14,
-                recall_at_5: 1.0,
-                citation_precision: 0.965
+                agents: ["ExtractionAgent", "SummarizerAgent", "RiskAgent", "ComplianceAgent"]
             }, null, 2);
 
             document.getElementById('analysis-timestamp').innerText = 'Completed just now';
@@ -692,9 +742,96 @@
 
         function renderJobResults(results) {
             if (!results) return;
-            document.getElementById('summary-content').innerHTML = results.summary || "Summary generated successfully.";
+            
+            // Executive Summary
+            if (results.summary) {
+                const exec = typeof results.summary === 'string' ? results.summary : (results.summary.executive_summary || JSON.stringify(results.summary));
+                document.getElementById('summary-content').innerHTML = exec;
+            }
+
+            // Bid Decision
+            if (results.bid_decision) {
+                const bd = results.bid_decision;
+                const badgeColor = bd.recommendation === 'GO_BID' ? 'var(--success)' : (bd.recommendation === 'NO_BID' ? 'var(--danger)' : 'var(--warning)');
+                const factors = (bd.key_decision_factors || []).map(f => `<li>${f}</li>`).join('');
+                document.getElementById('bid-decision-container').innerHTML = `
+                    <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--card-border); padding: 20px; border-radius: 12px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <span style="font-size: 20px; font-weight: 700; color: ${badgeColor};">🎯 ${bd.recommendation}</span>
+                            <span style="font-size: 24px; font-weight: 700; color: var(--text-main);">Score: ${bd.composite_score}<span style="font-size: 14px; color: var(--text-muted);">/100</span></span>
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-main); margin-bottom: 10px;">
+                            ${bd.explanation}
+                        </div>
+                        <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
+                            <div><strong>Calibrated Confidence:</strong> <span style="color: ${badgeColor};">${(bd.calibrated_confidence * 100).toFixed(1)}%</span></div>
+                            <div><strong>Compliance Sub-Score:</strong> ${bd.compliance_score}%</div>
+                            <div><strong>Technical Fit:</strong> ${bd.technical_fit_score}%</div>
+                            <div><strong>Risk Penalty:</strong> -${bd.risk_penalty} pts</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-muted);">
+                        <strong>Key Decision Drivers:</strong>
+                        <ul style="margin-top: 6px; padding-left: 20px; line-height: 1.6;">
+                            ${factors || '<li>Standard evaluation completed.</li>'}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            // Compliance
+            if (results.compliance_assessment && results.compliance_assessment.checklist) {
+                const rows = results.compliance_assessment.checklist.map(item => {
+                    const badgeClass = item.status === 'Compliant' ? 'badge-pass' : 'badge-fail';
+                    return `
+                        <tr>
+                            <td>${item.requirement_name}</td>
+                            <td>${item.tender_value}</td>
+                            <td>${item.company_value}</td>
+                            <td><span class="${badgeClass}">${item.status}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+                document.getElementById('compliance-tbody').innerHTML = rows;
+            }
+
+            // Risks
+            if (results.risk_analysis && results.risk_analysis.identified_risks) {
+                const riskHtml = results.risk_analysis.identified_risks.map(r => `
+                    <div class="risk-item">
+                        <div class="risk-title">⚠️ ${r.risk_item} (${r.severity})</div>
+                        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px;">${r.description}</div>
+                        <div style="font-size: 12px; color: var(--primary);"><strong>Mitigation:</strong> ${r.mitigation_strategy}</div>
+                    </div>
+                `).join('');
+                document.getElementById('risks-container').innerHTML = riskHtml || '<div style="padding: 10px; color: var(--text-muted);">No major risks flagged.</div>';
+            }
+
             document.getElementById('raw-json').innerText = JSON.stringify(results, null, 2);
         }
+
+        // Populate the two live cards from the real metrics endpoint. These are
+        // the only header figures that reflect this deployment's actual state;
+        // the other two are dated offline benchmark results, labelled as such.
+        async function loadLiveMetrics() {
+            try {
+                const response = await fetch('/admin/metrics');
+                if (!response.ok) return;
+                const data = await response.json();
+                const summary = (data && data.summary) || {};
+                if (summary.total_tenders !== undefined && summary.total_tenders !== null) {
+                    document.getElementById('metric-tenders').innerText = summary.total_tenders;
+                }
+                if (summary.total_agent_calls !== undefined && summary.total_agent_calls !== null) {
+                    document.getElementById('metric-calls').innerText = summary.total_agent_calls;
+                }
+            } catch (e) {
+                // Leave the em-dash placeholders in place rather than inventing a number.
+                console.warn("Could not load /admin/metrics", e);
+            }
+        }
+
+        loadLiveMetrics();
     </script>
 </body>
 </html>

@@ -15,19 +15,32 @@ smoke       No database, no API key. Validates every annotation against
             corpus/schema.json and verifies each gold_span appears verbatim in
             text extracted from its PDF. Catches corpus rot. This is what CI runs.
 
-retrieval   Needs PostgreSQL + pgvector. Ingests each corpus PDF (chunk → embed →
+retrieval   Needs a database, no API key. Ingests each corpus PDF (chunk → embed →
             store), then runs real vector search per question. Reports
-            Recall@1/3/5/10, MRR@10 and retrieval latency.
+            Recall@1/3/5/10, MRR@10 and retrieval latency. Runs against pgvector
+            when PostgreSQL is reachable, and otherwise against the SQLite
+            brute-force cosine fallback in app/services/retriever.py — the header
+            and the results JSON both record which backend actually served the
+            queries, because the two are not interchangeable evidence.
 
-extraction  Needs PostgreSQL + GEMINI_API_KEY. Runs ExtractionAgent over each
+extraction  Needs a database + GEMINI_API_KEY. Runs ExtractionAgent over each
             document and scores extracted fields against ground truth, with
             numeric normalization for money. Reports token usage and latency.
+
+ablation    Needs a database + GEMINI_API_KEY. Runs the four-config grid
+            (mono-full / multi-full / multi-rag / multi-rag-cite) over the same
+            corpus and reports field accuracy, tokens, latency, and — for
+            rag-cite — grounding precision and hallucination rate.
+
+corrigendum Needs a database + GEMINI_API_KEY. Checks that applying an amendment
+            document overrides the parent tender's deadline and EMD.
 
 Usage
 -----
     python eval_harness.py --mode smoke
     python eval_harness.py --mode retrieval --k 10
     python eval_harness.py --mode extraction --limit 5
+    python eval_harness.py --mode ablation --limit 5
 
 Results are written to eval_results/<mode>-<timestamp>.json so paper tables can
 be regenerated rather than retyped.
@@ -51,6 +64,37 @@ SCHEMA_PATH = CORPUS_DIR / "schema.json"
 RESULTS_DIR = Path(__file__).resolve().parent / "eval_results"
 
 RECALL_KS = (1, 3, 5, 10)
+
+
+def _model_name() -> str:
+    """
+    The model id agents will actually use.
+
+    Reads it from app.agents.base rather than re-deriving the default here, so
+    the harness can never label results with a different model than the one that
+    produced them.
+    """
+    from app.agents.base import DEFAULT_MODEL_NAME
+
+    return DEFAULT_MODEL_NAME
+
+
+def backend_label() -> str:
+    """
+    Name the vector-search backend actually in use for this run.
+
+    app/database.py silently falls back to SQLite when PostgreSQL is unreachable,
+    and app/services/retriever.py then takes a numpy brute-force cosine path
+    instead of pgvector's indexed `<=>` operator. Both compute genuine cosine
+    similarity, so recall figures are comparable — but only the pgvector path
+    exercises the HNSW index, so latency figures are not, and a run must not be
+    reported as pgvector evidence when it was not.
+    """
+    from app.database import DATABASE_URL
+
+    if DATABASE_URL.startswith("sqlite"):
+        return "sqlite-bruteforce-cosine (PostgreSQL unreachable; HNSW index NOT exercised)"
+    return "pgvector-cosine"
 
 
 # ===========================================================================
@@ -287,7 +331,22 @@ def run_smoke(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
 # Mode: retrieval
 # ===========================================================================
 
-def _ingest(db, ann: Dict[str, Any], text: str, embedder) -> int:
+def _chunk_document(text: str, strategy: str) -> List[Dict[str, Any]]:
+    """
+    Chunk `text` with the requested strategy.
+
+    'character' is the 1000/200 sliding window used by the production ingest path
+    in app/tasks.py. 'structure' splits on clause/section headings instead. Both
+    return the same chunk dict shape, so the harness is strategy-agnostic.
+    """
+    from app.services.pdf_processor import PDFProcessor
+
+    if strategy == "structure":
+        return PDFProcessor.chunk_text_structured(text)
+    return PDFProcessor.chunk_text(text, chunk_size=1000, chunk_overlap=200)
+
+
+def _ingest(db, ann: Dict[str, Any], text: str, embedder, chunking_strategy: str = "character") -> int:
     """
     Chunk, embed and store one document; returns its tender_id.
 
@@ -295,14 +354,13 @@ def _ingest(db, ann: Dict[str, Any], text: str, embedder) -> int:
     the same pipeline the app runs, not a parallel reimplementation.
     """
     from app.models import Tender, TenderChunk
-    from app.services.pdf_processor import PDFProcessor
 
     tender = Tender(title=f"[eval] {ann['doc_id']}", raw_text=text)
     db.add(tender)
     db.commit()
     db.refresh(tender)
 
-    chunks = PDFProcessor.chunk_text(text, chunk_size=1000, chunk_overlap=200)
+    chunks = _chunk_document(text, chunking_strategy)
     vectors = embedder.embed_batch([c["text"] for c in chunks])
     for chunk, vector in zip(chunks, vectors):
         db.add(TenderChunk(
@@ -317,7 +375,12 @@ def _ingest(db, ann: Dict[str, Any], text: str, embedder) -> int:
     return tender.id
 
 
-def run_retrieval(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[str, Any]]:
+def run_retrieval(
+    limit: Optional[int],
+    k: int,
+    keep: bool,
+    chunking_strategy: str = "character",
+) -> Tuple[bool, Dict[str, Any]]:
     """
     Measure real vector-search retrieval quality.
 
@@ -343,7 +406,9 @@ def run_retrieval(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[
     chunk_total = 0
 
     print("=" * 78)
-    print(f"  RETRIEVAL EVALUATION (real pgvector cosine search, top-{top_k})")
+    print(f"  RETRIEVAL EVALUATION (top-{top_k})")
+    print(f"  backend: {backend_label()}")
+    print(f"  chunking: {chunking_strategy}")
     print("=" * 78)
     print(f"{'DOC':<14} {'CHUNKS':>7} {'Q':>4} {'R@1':>6} {'R@5':>6} {'R@10':>6} {'MRR':>6} {'ms':>7}")
     print("-" * 78)
@@ -351,7 +416,7 @@ def run_retrieval(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[
     try:
         for ann in annotations:
             text = extract_text(ann)
-            tender_id = _ingest(db, ann, text, embedder)
+            tender_id = _ingest(db, ann, text, embedder, chunking_strategy)
             created.append(tender_id)
             n_chunks = db.query(TenderChunk).filter(TenderChunk.tender_id == tender_id).count()
             chunk_total += n_chunks
@@ -442,8 +507,10 @@ def run_retrieval(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[
                 "p95": sorted_lat[min(len(sorted_lat) - 1, int(0.95 * (len(sorted_lat) - 1)))] if sorted_lat else None,
             },
             "embedding_model": os.environ.get("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2"),
-            "chunk_size": 1000,
-            "chunk_overlap": 200,
+            "vector_backend": backend_label(),
+            "chunking_strategy": chunking_strategy,
+            "chunk_size": 1000 if chunking_strategy == "character" else None,
+            "chunk_overlap": 200 if chunking_strategy == "character" else None,
             "passed": passed,
             "per_document": per_doc,
         }
@@ -634,7 +701,7 @@ def run_extraction(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
         "macro_field_accuracy": mean(scored) if scored else None,
         "mean_total_tokens": mean(tokens) if tokens else None,
         "mean_latency_ms": mean(latencies) if latencies else None,
-        "model": os.environ.get("GEMINI_MODEL_NAME", "gemini-1.5-flash"),
+        "model": _model_name(),
         "passed": passed,
         "per_document": per_doc,
     }
@@ -653,13 +720,34 @@ ABLATION_CONFIGS = [
     ("multi-rag-cite", "Multi-agent, retrieval + citation verification", "rag-cite"),
 ]
 
-# Cost model: Gemini 1.5 Flash $/1M tokens
-_COST_PER_1M_INPUT  = 0.075
-_COST_PER_1M_OUTPUT = 0.30
+# Published $/1M-token list prices, keyed by model id. A model absent from this
+# table gets `estimated_cost_usd: None` and prints "n/a" — an invented price is
+# worse than a missing one, and the token counts are the measured quantity anyway.
+_MODEL_PRICES: Dict[str, Dict[str, float]] = {
+    # Add an entry only when the rate has been checked against Google's pricing
+    # page, together with the date it was checked.
+}
 
 
-def _estimate_cost(prompt_tokens: float, completion_tokens: float) -> float:
-    return (prompt_tokens * _COST_PER_1M_INPUT + completion_tokens * _COST_PER_1M_OUTPUT) / 1_000_000
+def _estimate_cost(
+    model: str,
+    prompt_tokens: float,
+    total_tokens: float,
+) -> Optional[float]:
+    """
+    Estimate USD cost for a run, or None when the model's price is unknown.
+
+    Non-prompt tokens are billed at the output rate. That deliberately includes
+    reasoning ("thinking") tokens: on the gemini-3.x flash models
+    `total_token_count` substantially exceeds prompt + candidates, and those
+    hidden tokens are billable. Costing `prompt + completion` alone — as an
+    earlier version of this function did — undercounts by an order of magnitude.
+    """
+    price = _MODEL_PRICES.get(model)
+    if price is None:
+        return None
+    output_tokens = max(0.0, total_tokens - prompt_tokens)
+    return (prompt_tokens * price["input_per_1m"] + output_tokens * price["output_per_1m"]) / 1_000_000
 
 
 def _score_extraction_fields(facts_dict: Dict[str, Any], gold: Dict[str, Any]) -> Dict[str, Optional[bool]]:
@@ -685,14 +773,19 @@ def _score_extraction_fields(facts_dict: Dict[str, Any], gold: Dict[str, Any]) -
     }
 
 
-def run_ablation(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[str, Any]]:
+def run_ablation(
+    limit: Optional[int],
+    k: int,
+    keep: bool,
+    chunking_strategy: str = "character",
+) -> Tuple[bool, Dict[str, Any]]:
     """
     Run all four ablation configs on the same corpus and report the results grid.
 
     Grid columns per config:
       - macro field accuracy  (extraction quality vs gold annotations)
-      - mean total tokens     (proxy for cost)
-      - estimated cost USD    (tokens × Gemini 1.5 Flash rate)
+      - mean total tokens     (measured; includes billable reasoning tokens)
+      - estimated cost USD    (only when the model's list price is on file)
       - mean latency ms
       - grounding precision   (rag-cite only: cited chunk contained the value)
       - hallucination rate    (rag-cite only: value not in cited chunk)
@@ -720,7 +813,8 @@ def run_ablation(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[s
     created_tender_ids: List[int] = []
 
     print("=" * 78)
-    print("  ABLATION SETUP: Ingesting corpus into pgvector")
+    print("  ABLATION SETUP: Ingesting corpus")
+    print(f"  backend: {backend_label()}  |  chunking: {chunking_strategy}  |  model: {_model_name()}")
     print("=" * 78)
     tender_ids: Dict[str, int] = {}    # doc_id → tender_id
     try:
@@ -732,7 +826,7 @@ def run_ablation(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[s
             created_tender_ids.append(tid)
             tender_ids[ann["doc_id"]] = tid
 
-            chunks   = PDFProcessor.chunk_text(text, chunk_size=1000, chunk_overlap=200)
+            chunks   = _chunk_document(text, chunking_strategy)
             vectors  = embedder.embed_batch([c["text"] for c in chunks])
             for chunk, vector in zip(chunks, vectors):
                 db.add(TenderChunk(
@@ -849,7 +943,10 @@ def run_ablation(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[s
             mean_pt   = mean(prompt_tokens_all) if prompt_tokens_all else None
             mean_ct   = mean(completion_tokens_all) if completion_tokens_all else None
             mean_lat  = mean(latencies_all) if latencies_all else None
-            est_cost  = _estimate_cost(sum(prompt_tokens_all), sum(completion_tokens_all)) if prompt_tokens_all else None
+            est_cost  = (
+                _estimate_cost(_model_name(), sum(prompt_tokens_all), sum(total_tokens_all))
+                if prompt_tokens_all and total_tokens_all else None
+            )
 
             cite_summary: Optional[Dict[str, Any]] = None
             if cite_results:
@@ -928,8 +1025,13 @@ def run_ablation(limit: Optional[int], k: int, keep: bool) -> Tuple[bool, Dict[s
             "mode": "ablation",
             "corpus_documents": len(annotations),
             "k_retrieval": k,
-            "model": os.environ.get("GEMINI_MODEL_NAME", "gemini-1.5-flash"),
-            "cost_model": {"input_per_1m": _COST_PER_1M_INPUT, "output_per_1m": _COST_PER_1M_OUTPUT},
+            "vector_backend": backend_label(),
+            "chunking_strategy": chunking_strategy,
+            "model": _model_name(),
+            "cost_model": (
+                _MODEL_PRICES.get(_model_name())
+                or f"no list price on file for {_model_name()}; cost not estimated"
+            ),
             "grid": grid,
             "passed": passed,
         }
@@ -953,13 +1055,16 @@ def run_corrigendum(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
     """
     from app.models import Tender
     from app.agents.orchestrator import AgentOrchestrator
-    from app.database import Base, engine, SessionLocal
+    from app.database import SessionLocal
 
     print("=" * 78)
     print("  CORRIGENDUM / AMENDMENT EVALUATION")
     print("=" * 78)
 
-    Base.metadata.create_all(bind=engine)
+    # No Base.metadata.create_all here on purpose: schema is owned by Alembic
+    # (`alembic upgrade head`). Calling create_all would let the harness silently
+    # build a schema that has drifted from the migrations, which is exactly the
+    # bootstrap that was removed from app/main.py.
     db = SessionLocal()
 
 
@@ -1029,7 +1134,9 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=None, help="Evaluate only the first N documents.")
     parser.add_argument("--k", type=int, default=10, help="Top-k for retrieval mode (default: 10).")
     parser.add_argument("--chunking-strategy", choices=["character", "structure"], default="character",
-                        help="Chunking strategy: 'character' (1000 char window) or 'structure' (clause/section aware).")
+                        help="Chunking strategy for retrieval/ablation ingest: 'character' "
+                             "(1000-char window, 200 overlap — matches app/tasks.py) or "
+                             "'structure' (clause/section-heading aware).")
     parser.add_argument("--keep", action="store_true",
                         help="Retrieval mode: leave ingested tenders in the DB for inspection.")
     parser.add_argument("--no-save", action="store_true", help="Do not write eval_results/*.json.")
@@ -1039,13 +1146,13 @@ def main() -> int:
     if args.mode == "smoke":
         passed, payload = run_smoke(args.limit)
     elif args.mode == "retrieval":
-        passed, payload = run_retrieval(args.limit, args.k, args.keep)
+        passed, payload = run_retrieval(args.limit, args.k, args.keep, args.chunking_strategy)
     elif args.mode == "extraction":
         passed, payload = run_extraction(args.limit)
     elif args.mode == "corrigendum":
         passed, payload = run_corrigendum(args.limit)
     else:  # ablation
-        passed, payload = run_ablation(args.limit, args.k, args.keep)
+        passed, payload = run_ablation(args.limit, args.k, args.keep, args.chunking_strategy)
 
     payload["elapsed_seconds"] = round(time.time() - started, 3)
     payload["timestamp_utc"] = datetime.now(timezone.utc).isoformat()

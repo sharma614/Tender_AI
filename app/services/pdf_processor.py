@@ -1,6 +1,6 @@
 import re
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pymupdf as fitz  # PyMuPDF ≥1.24
 
@@ -138,6 +138,14 @@ class PDFProcessor:
             return PDFProcessor.chunk_text(text, chunk_size=1000, chunk_overlap=200)
 
         sections: List[Tuple[str, int, int]] = []
+
+        # Text before the first heading is still document content — a preamble,
+        # NIT header or covering letter — and often carries the tender title and
+        # dates. Emit it as its own section rather than dropping it, otherwise
+        # any gold span living above the first heading becomes unretrievable.
+        if matches[0].start() > 0 and text[: matches[0].start()].strip():
+            sections.append(("Preamble", 0, matches[0].start()))
+
         for i, match in enumerate(matches):
             section_title = match.group(1).strip()
             start_pos = match.start()

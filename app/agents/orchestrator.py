@@ -1,4 +1,3 @@
-import concurrent.futures
 from typing import Any, Dict, List, Literal
 
 from langgraph.graph import END, START, StateGraph
@@ -127,9 +126,17 @@ class AgentOrchestrator:
         except AgentError as exc:
             return {"tool_calls": [exc.record], "errors": [str(exc)]}
 
+    def _node_bid_decision(self, state: AgentState) -> Dict[str, Any]:
+        from ..services.bid_decision_engine import evaluate_bid_decision
+        try:
+            decision = evaluate_bid_decision(state)
+            return {"bid_decision": decision}
+        except Exception as exc:
+            return {"errors": [f"Bid decision calculation failed: {exc}"]}
+
     @staticmethod
     def _route_after_extraction(state: AgentState) -> str:
-        return "compliance" if state.extracted_facts is not None else END
+        return "compliance" if state.extracted_facts is not None else "bid_decision"
 
     def _build_graph(self):
         graph = StateGraph(AgentState)
@@ -138,6 +145,7 @@ class AgentOrchestrator:
         graph.add_node("summarizer", self._node_summarizer)
         graph.add_node("risk", self._node_risk)
         graph.add_node("compliance", self._node_compliance)
+        graph.add_node("bid_decision", self._node_bid_decision)
 
         graph.add_edge(START, "extraction")
         graph.add_edge(START, "summarizer")
@@ -146,11 +154,12 @@ class AgentOrchestrator:
         graph.add_conditional_edges(
             "extraction",
             self._route_after_extraction,
-            {"compliance": "compliance", END: END},
+            {"compliance": "compliance", "bid_decision": "bid_decision"},
         )
+        graph.add_edge("compliance", "bid_decision")
         graph.add_edge("summarizer", END)
         graph.add_edge("risk", END)
-        graph.add_edge("compliance", END)
+        graph.add_edge("bid_decision", END)
 
         return graph.compile()
 
@@ -163,13 +172,21 @@ class AgentOrchestrator:
         db: Session,
         company_profile: CompanyProfile = None,
         mode: Literal["full", "rag", "rag-cite"] = "full",
-        use_parallel: bool = True,
     ) -> AgentState:
         """
-        Execute agent tasks.
+        Execute the agent graph for one tender and persist the results.
 
-        When `use_parallel=True`, runs Extraction, Summarizer, and Risk agents
-        concurrently via ThreadPoolExecutor(max_workers=3) for ~3x latency reduction.
+        Execution is the compiled LangGraph in `self.graph`. Extraction,
+        summarization and risk fan out from START, so LangGraph's Pregel loop
+        schedules them in one superstep and runs them concurrently on its own
+        executor; compliance runs in the next superstep because it depends on
+        `extracted_facts`. There is deliberately only one execution path —
+        an earlier version kept a hand-rolled ThreadPoolExecutor alongside the
+        graph and defaulted to it, which meant the compiled graph was never
+        actually exercised and the two paths could silently diverge.
+
+        Retrieval runs here rather than inside a node because it needs the DB
+        Session, and agents must not hold one (see app/agents/base.py).
         """
         extraction_chunks: List[RetrievedChunk] = []
         summary_chunks: List[RetrievedChunk] = []
@@ -200,56 +217,10 @@ class AgentOrchestrator:
             risk_chunks=risk_chunks,
         )
 
-        print(f"--- Starting Agent Analysis (mode={mode}, parallel={use_parallel}) for Tender ID: {tender_id} ---")
+        print(f"--- Starting Agent Analysis (mode={mode}, LangGraph) for Tender ID: {tender_id} ---")
 
-        if use_parallel:
-            # Concurrently execute 3 independent agent nodes
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                fut_ext = executor.submit(self._node_extraction, initial)
-                fut_sum = executor.submit(self._node_summarizer, initial)
-                fut_rsk = executor.submit(self._node_risk, initial)
-
-                res_ext = fut_ext.result()
-                res_sum = fut_sum.result()
-                res_rsk = fut_rsk.result()
-
-            # Combine node state updates
-            tool_calls = (
-                res_ext.get("tool_calls", [])
-                + res_sum.get("tool_calls", [])
-                + res_rsk.get("tool_calls", [])
-            )
-            errors = (
-                res_ext.get("errors", [])
-                + res_sum.get("errors", [])
-                + res_rsk.get("errors", [])
-            )
-
-            state = AgentState(
-                tender_id=tender_id,
-                raw_text=raw_text,
-                company_profile=initial.company_profile,
-                mode=mode,
-                extracted_facts=res_ext.get("extracted_facts"),
-                summary=res_sum.get("summary"),
-                risk_analysis=res_rsk.get("risk_analysis"),
-                tool_calls=tool_calls,
-                errors=errors,
-            )
-
-            # Compliance agent depends on extracted_facts
-            if state.extracted_facts:
-                res_comp = self._node_compliance(state)
-                state.compliance_assessment = res_comp.get("compliance_assessment")
-                if "tool_calls" in res_comp:
-                    state.tool_calls.extend(res_comp["tool_calls"])
-                if "errors" in res_comp:
-                    state.errors.extend(res_comp["errors"])
-
-        else:
-            # Sequential LangGraph execution
-            result = self.graph.invoke(initial)
-            state = AgentState(**result) if isinstance(result, dict) else result
+        result = self.graph.invoke(initial)
+        state = AgentState(**result) if isinstance(result, dict) else result
 
         self._persist(state, db)
 
@@ -282,25 +253,30 @@ class AgentOrchestrator:
             db=db,
             company_profile=company_profile,
             mode="full",
-            use_parallel=True,
         )
 
         tender = db.query(Tender).filter(Tender.id == parent_tender_id).first()
         if tender and corrigendum_state.extracted_facts:
             corr_facts = corrigendum_state.extracted_facts
-            existing_details = tender.details or {}
+            existing_details = dict(tender.details or {})
 
-            # Override extracted fields if corrigendum specifies them
+            # Override extracted fields if corrigendum specifies them.
+            # Everything is written into Tender.details, which is the only place
+            # these values are actually persisted — Tender has no dedicated
+            # submission_deadline column, so assigning one would be a silent no-op.
             if corr_facts.submission_deadline and corr_facts.submission_deadline.lower() != "not specified":
                 existing_details["submission_deadline"] = corr_facts.submission_deadline
-                tender.submission_deadline = corr_facts.submission_deadline
 
             fin = corr_facts.financial_requirements
+            existing_fin = dict(existing_details.get("financial_requirements") or {})
             if fin.minimum_turnover:
-                existing_details["financial_requirements"]["minimum_turnover"] = fin.minimum_turnover
+                existing_fin["minimum_turnover"] = fin.minimum_turnover
             if fin.earnest_money_deposit_emd:
-                existing_details["financial_requirements"]["earnest_money_deposit_emd"] = fin.earnest_money_deposit_emd
+                existing_fin["earnest_money_deposit_emd"] = fin.earnest_money_deposit_emd
+            existing_details["financial_requirements"] = existing_fin
 
+            # Reassign rather than mutate in place: SQLAlchemy's default JSON type
+            # is not mutation-tracked, so an in-place edit would not be flushed.
             tender.details = existing_details
             db.commit()
             print(f"Successfully applied corrigendum overrides to Tender ID: {parent_tender_id}")
@@ -326,6 +302,10 @@ class AgentOrchestrator:
                     tender.risks = state.risk_analysis.model_dump()
                 if state.compliance_assessment is not None:
                     tender.compliance_status = state.compliance_assessment.model_dump()
+                if state.bid_decision is not None:
+                    details = dict(tender.details or {})
+                    details["bid_decision"] = state.bid_decision.model_dump()
+                    tender.details = details
                 db.commit()
                 print("Analysis results persisted to database.")
         except Exception as exc:

@@ -223,6 +223,7 @@ class AgentState(BaseModel):
     summary: Optional[TenderSummary] = Field(None, description="Generated executive summary.")
     risk_analysis: Optional[RiskAnalysis] = Field(None, description="Identified risk points.")
     compliance_assessment: Optional[ComplianceAssessment] = Field(None, description="Final compliance audit results.")
+    bid_decision: Optional["BidDecision"] = Field(None, description="Calibrated Bid/No-Bid decision & score.")
 
     # Instrumentation accumulated across all agent calls, persisted once at the end.
     tool_calls: Annotated[List[ToolCallRecord], operator.add] = Field(
@@ -236,6 +237,25 @@ class AgentState(BaseModel):
         default_factory=list, description="Failure messages from agent nodes."
     )
 
+# --- Bid/No-Bid Decision Engine Schema ---
+class BidDecision(BaseModel):
+    recommendation: Literal["GO_BID", "NO_BID", "CONDITIONAL_BID"] = Field(
+        ..., description="Final Bid/No-Bid recommendation."
+    )
+    composite_score: float = Field(
+        ..., description="Overall score from 0.0 to 100.0 considering compliance, risks, and technical fit."
+    )
+    calibrated_confidence: float = Field(
+        ..., description="Calibrated confidence score from 0.0 to 1.0 based on citation grounding and extraction completeness."
+    )
+    compliance_score: float = Field(..., description="Compliance sub-score (0-100).")
+    risk_penalty: float = Field(..., description="Subtracted risk penalty points (0-100).")
+    technical_fit_score: float = Field(..., description="Technical alignment sub-score (0-100).")
+    key_decision_factors: List[str] = Field(
+        default_factory=list, description="Key drivers behind the Bid/No-Bid decision."
+    )
+    explanation: str = Field(..., description="Executive narrative explaining the recommendation.")
+
 # --- FastAPI Response Schemas ---
 class TenderBase(BaseModel):
     title: str
@@ -245,6 +265,7 @@ class TenderResponse(TenderBase):
     summary: Optional[Dict] = None
     risks: Optional[Dict] = None
     compliance_status: Optional[Dict] = None
+    bid_decision: Optional[Dict] = None
     created_at: datetime
 
     class Config:

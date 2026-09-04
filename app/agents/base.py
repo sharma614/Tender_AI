@@ -28,9 +28,13 @@ T = TypeVar("T", bound=BaseModel)
 
 # Single source of truth for the model id, so an ablation across models is a
 # one-line config change rather than an edit to four agent files.
-DEFAULT_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-1.5-flash")
+#
+# gemini-1.5-flash and gemini-2.5-flash both now return 404 for new API keys
+# ("no longer available to new users"); the API's own migration target is
+# gemini-3.6-flash, which is what this was verified against.
+DEFAULT_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-3.6-flash")
 
-# Gemini 1.5 Flash accepts ~1M tokens; this bound only guards pathological input.
+# The flash models accept ~1M tokens; this bound only guards pathological input.
 MAX_PROMPT_CHARS = 1_500_000
 
 _configured = False
@@ -58,6 +62,13 @@ def _read_usage(response: Any) -> Dict[str, Optional[int]]:
     Read defensively: `usage_metadata` is not guaranteed across provider or SDK
     versions, and a missing counter must degrade to null columns rather than
     crash a pipeline run.
+
+    Measurement caveat that matters when these numbers are reported: on the
+    gemini-3.x flash models `total_token_count` is substantially larger than
+    `prompt_token_count + candidates_token_count`, because billable reasoning
+    ("thinking") tokens are included in the total but are not broken out as a
+    separate field by this SDK version. `total_tokens` is therefore the only
+    complete figure; treating prompt+completion as the total undercounts badly.
     """
     usage = getattr(response, "usage_metadata", None)
     if usage is None:
