@@ -697,6 +697,7 @@
                 <div class="output-box">
                     <div class="output-tabs">
                         <div class="out-tab active" data-tab="summary" onclick="setOutTab('summary', this)">Executive Summary</div>
+                        <div class="out-tab" data-tab="bid" onclick="setOutTab('bid', this)">🎯 Bid / No-Bid</div>
                         <div class="out-tab" data-tab="compliance" onclick="setOutTab('compliance', this)">Compliance Matrix</div>
                         <div class="out-tab" data-tab="risks" onclick="setOutTab('risks', this)">Risk Evaluation</div>
                     </div>
@@ -882,18 +883,21 @@
             {
                 name: "Automotive AI Supply Chain RFP",
                 summary: "<strong>Project Title:</strong> Automotive Next-Gen Telematics & Autonomous Fleet AI<br><strong>Budget:</strong> $12,500,000 | <strong>Scope:</strong> ISO 26262 functional safety, real-time edge processing across 50,000 connected vehicles.",
+                bid: "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;'><span style='font-weight:700; color:#fff;'>Decision Engine Recommendation</span><span style='background:var(--lime-green); color:#000; font-weight:800; padding:6px 14px; border-radius:16px; font-size:12px;'>BID (GO)</span></div><div style='display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;'><div style='background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;'><div style='font-size:11px; color:var(--text-muted);'>COMPLIANCE MATCH</div><div style='font-size:20px; font-weight:800; color:var(--success);'>100%</div></div><div style='background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;'><div style='font-size:11px; color:var(--text-muted);'>ESTIMATED MARGIN</div><div style='font-size:20px; font-weight:800; color:var(--lime-green);'>24.5%</div></div></div><div style='font-size:13px; color:var(--text-secondary); line-height:1.6;'>Full alignment across functional safety and turnover prerequisites. High strategic priority.</div>",
                 compliance: "<div style='color:var(--success)'>✓ Turnover: $12.5M Required ($50M Company) — PASS</div><div style='color:var(--success)'>✓ ISO 26262 Automotive Safety — PASS</div><div style='color:var(--success)'>✓ 5+ Years Hardware Experience — PASS</div>",
                 risks: "<div style='color:var(--warning)'>⚠️ Strict Warranty Penalty: 1.0% per week for delivery delays.</div>"
             },
             {
                 name: "Smart Infrastructure Surveillance",
                 summary: "<strong>Project Title:</strong> Smart City AI Edge Analytics & Traffic Optimization<br><strong>Budget:</strong> $4,500,000 | <strong>Scope:</strong> Deployment of 150 computer vision edge nodes with zero-trust cloud ingestion.",
+                bid: "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;'><span style='font-weight:700; color:#fff;'>Decision Engine Recommendation</span><span style='background:var(--lime-green); color:#000; font-weight:800; padding:6px 14px; border-radius:16px; font-size:12px;'>BID WITH CAUTION</span></div><div style='display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;'><div style='background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;'><div style='font-size:11px; color:var(--text-muted);'>COMPLIANCE MATCH</div><div style='font-size:20px; font-weight:800; color:var(--success);'>88%</div></div><div style='background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;'><div style='font-size:11px; color:var(--text-muted);'>ESTIMATED MARGIN</div><div style='font-size:20px; font-weight:800; color:var(--lime-green);'>18.2%</div></div></div><div style='font-size:13px; color:var(--text-secondary); line-height:1.6;'>Liquidated damages capped at 10% requires executive approval prior to tender submission.</div>",
                 compliance: "<div style='color:var(--success)'>✓ Turnover: $4.5M Required ($10M Company) — PASS</div><div style='color:var(--success)'>✓ ISO 27001 Security — PASS</div>",
                 risks: "<div style='color:var(--danger)'>🚨 Liquidated Damages: Capped at 10% maximum contract value.</div>"
             },
             {
                 name: "Aerospace Cloud Defense Bid",
                 summary: "<strong>Project Title:</strong> Defense Aerospace Cloud Infrastructure & Secure Data Mesh<br><strong>Budget:</strong> $28,000,000 | <strong>Scope:</strong> FedRAMP High / GovCloud container mesh migration.",
+                bid: "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;'><span style='font-weight:700; color:#fff;'>Decision Engine Recommendation</span><span style='background:var(--lime-green); color:#000; font-weight:800; padding:6px 14px; border-radius:16px; font-size:12px;'>PROCEED TO BID</span></div><div style='display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;'><div style='background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;'><div style='font-size:11px; color:var(--text-muted);'>COMPLIANCE MATCH</div><div style='font-size:20px; font-weight:800; color:var(--success);'>96%</div></div><div style='background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;'><div style='font-size:11px; color:var(--text-muted);'>ESTIMATED MARGIN</div><div style='font-size:20px; font-weight:800; color:var(--lime-green);'>31.0%</div></div></div><div style='font-size:13px; color:var(--text-secondary); line-height:1.6;'>Prime defense contract with high profitability margin. Audit timeline manageable.</div>",
                 compliance: "<div style='color:var(--success)'>✓ Bank Solvency Certificate — PASS</div><div style='color:var(--success)'>✓ 8+ Years Defense IT — PASS</div>",
                 risks: "<div style='color:var(--warning)'>⚠️ Mandatory On-Premise Security Clearance Audit within 14 days.</div>"
             }
@@ -934,6 +938,19 @@
                         <div style="color: var(--lime-green); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace;">📋 Executive Summary</div>
                         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); padding: 18px; border-radius: 12px;">
                             ${data.summary}
+                        </div>
+                    </div>
+                `;
+            } else if (currentTab === 'bid') {
+                out.innerHTML = `
+                    <div style="font-size: 14px; line-height: 1.8;">
+                        <div style="color: var(--lime-green); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace;">🎯 Bid / No-Bid Decision Engine</div>
+                        <div style="background: rgba(204, 255, 0, 0.03); border: 1px solid rgba(204, 255, 0, 0.18); padding: 18px; border-radius: 12px;">
+                            ${data.bid || `
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;"><span style="font-weight:700; color:#fff;">Decision Engine Recommendation</span><span style="background:var(--lime-green); color:#000; font-weight:800; padding:6px 14px; border-radius:16px; font-size:12px;">PROCEED TO BID (GO)</span></div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;"><div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><div style="font-size:11px; color:var(--text-muted);">COMPLIANCE MATCH</div><div style="font-size:20px; font-weight:800; color:var(--success);">94.5%</div></div><div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><div style="font-size:11px; color:var(--text-muted);">ESTIMATED MARGIN</div><div style="font-size:20px; font-weight:800; color:var(--lime-green);">22.8%</div></div></div>
+                                <div style="font-size:13px; color:var(--text-secondary); line-height:1.6;">Automated multi-agent scoring confirms high technical feasibility and compliance readiness.</div>
+                            `}
                         </div>
                     </div>
                 `;
