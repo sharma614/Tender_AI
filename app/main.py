@@ -55,6 +55,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def prevent_html_caching(request, call_next):
+    response = await call_next(request)
+    if request.url.path in {"/", "/dashboard", "/site", "/preview"} or request.url.path.lower().endswith(".html"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -142,19 +152,27 @@ async def upload_tender(
     db.commit()
     db.refresh(db_job)
 
-    # 5. Enqueue the Celery task — passes IDs + text (not the ORM objects)
-    #    Import here to avoid circular import issues at module level
-    from .tasks import process_tender_job
-    celery_result = process_tender_job.delay(
-        job_id=db_job.id,
-        tender_id=db_tender.id,
-        raw_text=raw_text,
-        company_profile_dict=None,  # Use default AeroCorp profile
-    )
-
-    # 6. Store the Celery task UUID so we can also track via Celery backend if needed
-    db_job.celery_task_id = celery_result.id
-    db.commit()
+    # 5. Enqueue the Celery task — fallback to inline run_pipeline if Redis is offline
+    try:
+        from .tasks import process_tender_job
+        celery_result = process_tender_job.delay(
+            job_id=db_job.id,
+            tender_id=db_tender.id,
+            raw_text=raw_text,
+            company_profile_dict=None,  # Use default AeroCorp profile
+        )
+        db_job.celery_task_id = celery_result.id
+        db.commit()
+    except Exception as exc:
+        # Fallback to direct synchronous execution for local dev without Redis broker
+        print(f"[Fallback] Celery/Redis unavailable ({exc}). Running pipeline inline...")
+        from .tasks import run_pipeline
+        run_pipeline(
+            job_id=db_job.id,
+            tender_id=db_tender.id,
+            raw_text=raw_text,
+            company_profile_dict=None,
+        )
 
     return JobEnqueuedResponse(
         job_id=db_job.id,
@@ -218,16 +236,25 @@ def analyze_tender_with_profile(
     db.commit()
     db.refresh(db_job)
 
-    from .tasks import process_tender_job
-    celery_result = process_tender_job.delay(
-        job_id=db_job.id,
-        tender_id=db_tender.id,
-        raw_text=db_tender.raw_text,
-        company_profile_dict=company_profile.model_dump(),
-    )
-
-    db_job.celery_task_id = celery_result.id
-    db.commit()
+    try:
+        from .tasks import process_tender_job
+        celery_result = process_tender_job.delay(
+            job_id=db_job.id,
+            tender_id=db_tender.id,
+            raw_text=db_tender.raw_text,
+            company_profile_dict=company_profile.model_dump(),
+        )
+        db_job.celery_task_id = celery_result.id
+        db.commit()
+    except Exception as exc:
+        print(f"[Fallback] Celery/Redis unavailable ({exc}). Running pipeline inline...")
+        from .tasks import run_pipeline
+        run_pipeline(
+            job_id=db_job.id,
+            tender_id=db_tender.id,
+            raw_text=db_tender.raw_text,
+            company_profile_dict=company_profile.model_dump(),
+        )
 
     return JobEnqueuedResponse(
         job_id=db_job.id,

@@ -38,6 +38,12 @@ def test_health_endpoint():
     assert response.json()["status"] == "healthy"
     assert "version" in response.json()
 
+def test_html_entrypoints_are_not_cached():
+    for path in ("/", "/dashboard", "/site", "/preview", "/public/index.html", "/static/dashboard.html"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store, no-cache, must-revalidate, max-age=0"
+
 def test_metrics_endpoint():
     response = client.get("/admin/metrics")
     assert response.status_code == 200
