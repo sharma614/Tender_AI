@@ -25,11 +25,22 @@ lambda/*.zip
 # Docker
 .dockerignore
 
+# Local benchmark and session artifacts
+SESSION_BENCHMARK_AND_CHANGES.md
+
+# Frontend dependency and build output
+frontend/node_modules/
+frontend/dist/
+frontend/.vercel/
+
 # Test artifacts & local dev databases
 *.log
 *.db
 eval_results/
 .firebase/
+
+# Terraform
+*.tfplan
 
 # Synthetic tenders & generation corpus
 corpus/

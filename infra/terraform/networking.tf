@@ -170,10 +170,10 @@ resource "aws_security_group" "api" {
   tags = merge(local.common_tags, { Name = "${var.project_name}-api-sg" })
 }
 
-# ECS Worker — no inbound (pulls from SQS); outbound to RDS + internet
+# ECS Worker - no inbound (pulls from SQS); outbound to RDS + internet
 resource "aws_security_group" "worker" {
   name        = "${var.project_name}-worker-sg"
-  description = "Celery worker — no inbound, all outbound"
+  description = "Celery worker - no inbound, all outbound"
   vpc_id      = aws_vpc.main.id
 
   egress {

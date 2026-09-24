@@ -1,23 +1,60 @@
 import os
+from urllib.parse import quote_plus
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/tenderai")
 
-try:
-    engine = create_engine(DATABASE_URL)
-    # Test connection
-    with engine.connect() as conn:
-        pass
-except Exception:
-    # Fallback to local SQLite file database if PostgreSQL is not running
-    print("Warning: PostgreSQL server unreachable. Falling back to SQLite database (sqlite:///./tenderai_dev.db).")
-    DATABASE_URL = "sqlite:///./tenderai_dev.db"
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+def build_database_url() -> str:
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        return database_url
 
+    db_config = {
+        "DB_USER": os.environ.get("DB_USER"),
+        "DB_PASSWORD": os.environ.get("DB_PASSWORD"),
+        "DB_HOST": os.environ.get("DB_HOST"),
+        "DB_PORT": os.environ.get("DB_PORT"),
+        "DB_NAME": os.environ.get("DB_NAME"),
+    }
+
+    if not any(value for value in db_config.values()):
+        return "sqlite:///./tenderai_dev.db"
+
+    username = db_config["DB_USER"] or "postgres"
+    password = db_config["DB_PASSWORD"] or "postgres"
+    host = db_config["DB_HOST"] or "localhost"
+    port = db_config["DB_PORT"] or "5432"
+    database_name = db_config["DB_NAME"] or "tenderai"
+
+    encoded_password = quote_plus(password)
+    return f"postgresql://{username}:{encoded_password}@{host}:{port}/{database_name}"
+
+
+DATABASE_URL = build_database_url()
+
+
+def initialize_database():
+    if DATABASE_URL.startswith("sqlite"):
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+        return engine
+
+    try:
+        engine = create_engine(DATABASE_URL)
+        with engine.connect() as conn:
+            conn.execute("SELECT 1")
+        return engine
+    except Exception as exc:
+        raise RuntimeError(
+            "PostgreSQL configured but unreachable; refusing to silently fall back to SQLite. "
+            f"DB_URL={DATABASE_URL}. Original error: {exc}"
+        ) from exc
+
+
+engine = initialize_database()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

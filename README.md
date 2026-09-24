@@ -119,6 +119,14 @@ uvicorn app.main:app --reload --port 8000
 python -m pytest tests/
 ```
 
+### Local Benchmark & Session Artifacts
+Generated benchmark notes, session logs, and local deployment notes are intentionally kept out of source control to avoid committing transient AWS/Docker debugging data.
+
+```bash
+# Example local artifact that is ignored by git
+SESSION_BENCHMARK_AND_CHANGES.md
+```
+
 ### Running the Evaluation Harness
 
 ```bash

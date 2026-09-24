@@ -183,7 +183,7 @@ resource "aws_db_instance" "postgres" {
 
   # Engine — use PostgreSQL 15 which supports pgvector via extension
   engine               = "postgres"
-  engine_version       = "15.4"
+  engine_version       = "15.13"
   instance_class       = var.db_instance_class
   allocated_storage    = 20
   storage_encrypted    = true
@@ -201,7 +201,7 @@ resource "aws_db_instance" "postgres" {
   # The FastAPI app does this automatically at startup.
   parameter_group_name = aws_db_parameter_group.postgres15.name
 
-  backup_retention_period = 7
+  backup_retention_period = 0
   deletion_protection     = false   # Set true in prod
   skip_final_snapshot     = true    # Set false in prod
 
@@ -540,7 +540,6 @@ resource "aws_lambda_function" "s3_upload_trigger" {
   environment {
     variables = {
       SQS_QUEUE_URL = aws_sqs_queue.tender_jobs.url
-      AWS_REGION    = var.aws_region
     }
   }
 
