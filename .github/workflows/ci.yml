@@ -10,6 +10,8 @@ jobs:
   test:
     name: Run Unit & Integration Tests
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./tenderai_ci.db
 
     steps:
       - name: Checkout Code
@@ -26,6 +28,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest pytest-cov
+
+      - name: Reset CI test database
+        run: |
+          rm -f tenderai_ci.db
 
       - name: Run Pytest Suite
         run: |

@@ -43,7 +43,7 @@ def initialize_database():
         return engine
 
     try:
-        engine = create_engine(DATABASE_URL)
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
         with engine.connect() as conn:
             conn.execute("SELECT 1")
         return engine
@@ -54,7 +54,11 @@ def initialize_database():
         ) from exc
 
 
-engine = initialize_database()
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
