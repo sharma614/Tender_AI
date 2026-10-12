@@ -1,0 +1,174 @@
+{
+  "doc_id": "synth-008",
+  "pdf": "pdfs/synth-008.pdf",
+  "source": "synthetic",
+  "page_count": 12,
+  "generator_note": "Synthetically generated clean-text PDF. Does not represent the scanned pages, malformed tables or OCR noise present in real tender documents.",
+  "fields": {
+    "tender_title": "Implementation of Hospital Management Information System",
+    "submission_deadline": "3 September 2027 15:00 IST",
+    "minimum_turnover": {
+      "value": 30000000,
+      "currency": "INR",
+      "raw": "Rs. 3,00,00,000"
+    },
+    "earnest_money_deposit_emd": {
+      "value": 750000,
+      "currency": "INR",
+      "raw": "INR 7,50,000"
+    },
+    "document_fee": {
+      "value": 5000,
+      "currency": "INR",
+      "raw": "Rs. 5,000"
+    },
+    "solvency_certificate_required": true,
+    "experience_years": 5,
+    "contract_duration_months": 24,
+    "bid_validity_days": 120,
+    "warranty_years": 2,
+    "liquidated_damages_rate": "1%",
+    "liquidated_damages_cap": "15%",
+    "performance_guarantee_pct": "3%",
+    "liability_cap": "150%",
+    "joint_ventures_allowed": false,
+    "subcontracting_limit": "25%",
+    "arbitration_seat": "Chennai",
+    "bid_language": "English or Hindi"
+  },
+  "questions": [
+    {
+      "id": 1,
+      "query": "What is the proposal submission deadline?",
+      "gold_span": "The last date and time for submission of bids is 3 September 2027 at 15:00 hours IST.",
+      "gold_page": 1,
+      "field": "submission_deadline"
+    },
+    {
+      "id": 2,
+      "query": "When is the pre-bid meeting scheduled?",
+      "gold_span": "A pre-bid meeting shall be convened on 26 August 2027 at the office of the State Urban Development Authority.",
+      "gold_page": 1,
+      "field": "prebid_date"
+    },
+    {
+      "id": 3,
+      "query": "What is the tender document fee?",
+      "gold_span": "A non-refundable tender document fee of Rs. 5,000 shall be paid online at the time of bid submission.",
+      "gold_page": 1,
+      "field": "document_fee"
+    },
+    {
+      "id": 4,
+      "query": "What is the liquidated damages rate for delay?",
+      "gold_span": "In the event of delay in completion, liquidated damages shall be levied at 1% of the contract value per month of delay, subject to an overall ceiling of 15% of the total contract value.",
+      "gold_page": 2,
+      "field": "liquidated_damages"
+    },
+    {
+      "id": 5,
+      "query": "What is the performance bank guarantee requirement?",
+      "gold_span": "The successful bidder shall furnish a performance bank guarantee equal to 3% of the contract value, valid for 36 months from the date of award.",
+      "gold_page": 3,
+      "field": "performance_guarantee"
+    },
+    {
+      "id": 6,
+      "query": "What is the warranty period required?",
+      "gold_span": "All supplied equipment shall carry a comprehensive on-site warranty of 2 years from the date of successful commissioning.",
+      "gold_page": 3,
+      "field": "warranty_period"
+    },
+    {
+      "id": 7,
+      "query": "What is the limitation of liability cap?",
+      "gold_span": "The aggregate liability of the contractor under this contract shall not exceed 150% of the total contract value, save in cases of fraud, wilful misconduct or breach of confidentiality obligations.",
+      "gold_page": 3,
+      "field": "liability_cap"
+    },
+    {
+      "id": 8,
+      "query": "What is the dispute resolution mechanism?",
+      "gold_span": "Any dispute arising out of or in connection with this contract shall be referred to arbitration under the Indian Council of Arbitration Rules, with Chennai as the seat of arbitration.",
+      "gold_page": 4,
+      "field": "dispute_resolution"
+    },
+    {
+      "id": 9,
+      "query": "In what language must bid documents be submitted?",
+      "gold_span": "All bid documents, correspondence and deliverables shall be submitted in English or Hindi.",
+      "gold_page": 5,
+      "field": "bid_language"
+    },
+    {
+      "id": 10,
+      "query": "What is the minimum annual turnover requirement?",
+      "gold_span": "The bidder shall have achieved a minimum average annual turnover of Rs. 3,00,00,000 in each of the last three audited financial years.",
+      "gold_page": 6,
+      "field": "minimum_turnover"
+    },
+    {
+      "id": 11,
+      "query": "What is the Earnest Money Deposit amount?",
+      "gold_span": "Bids shall be accompanied by an Earnest Money Deposit (EMD) of INR 7,50,000, furnished as a demand draft or an unconditional bank guarantee.",
+      "gold_page": 6,
+      "field": "emd"
+    },
+    {
+      "id": 12,
+      "query": "Is a bank solvency certificate required?",
+      "gold_span": "A bank solvency certificate issued by a scheduled commercial bank within the preceding six months is mandatory and shall be enclosed with the technical bid.",
+      "gold_page": 6,
+      "field": "solvency_certificate"
+    },
+    {
+      "id": 13,
+      "query": "What is the bid validity period?",
+      "gold_span": "Bids shall remain valid for a period of 120 days from the date of opening of the technical bid.",
+      "gold_page": 7,
+      "field": "bid_validity"
+    },
+    {
+      "id": 14,
+      "query": "What is the minimum years of experience required?",
+      "gold_span": "The bidder shall have a minimum of 5 years of experience in executing projects of a similar nature in the field of Healthcare IT.",
+      "gold_page": 8,
+      "field": "experience_years"
+    },
+    {
+      "id": 15,
+      "query": "Which ISO certifications are required?",
+      "gold_span": "The bidder shall hold valid ISO 20000-1:2018 and ISO 14001:2015 certifications as on the date of bid submission.",
+      "gold_page": 8,
+      "field": "iso_certifications"
+    },
+    {
+      "id": 16,
+      "query": "Are joint ventures or consortiums allowed?",
+      "gold_span": "Joint ventures, consortiums and any form of collaborative bidding are strictly prohibited. Only single-entity bids shall be accepted.",
+      "gold_page": 8,
+      "field": "joint_ventures"
+    },
+    {
+      "id": 17,
+      "query": "Is sub-contracting allowed and to what extent?",
+      "gold_span": "Sub-contracting of the awarded work is permitted only up to 25% of the total contract value, and only with the prior written approval of the Purchaser.",
+      "gold_page": 8,
+      "field": "subcontracting"
+    },
+    {
+      "id": 18,
+      "query": "What is the payment milestone schedule?",
+      "gold_span": "Payments shall be released against milestones as follows: 20% as mobilisation advance against an equivalent bank guarantee, 65% on delivery and installation, and the balance 15% on final acceptance testing and handover.",
+      "gold_page": 10,
+      "field": "payment_schedule"
+    },
+    {
+      "id": 19,
+      "query": "What is the contract execution duration?",
+      "gold_span": "The contract shall be executed over a period of 24 months from the date of issue of the letter of award.",
+      "gold_page": 10,
+      "field": "contract_duration"
+    }
+  ]
+}

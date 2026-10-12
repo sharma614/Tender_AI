@@ -16,6 +16,7 @@ Two deliberate design choices:
 """
 import json
 import os
+import re
 import time
 from typing import Any, Dict, Optional, Tuple, Type, TypeVar
 
@@ -143,8 +144,33 @@ class BaseAgent:
         )
 
         started = time.perf_counter()
+        max_retries = 5
+        response = None
+        for attempt in range(max_retries):
+            try:
+                response = self.model.generate_content(prompt)
+                break
+            except Exception as exc:
+                err_str = str(exc)
+                if ("429" in err_str or "quota" in err_str.lower() or "ResourceExhausted" in type(exc).__name__) and attempt < max_retries - 1:
+                    match = re.search(r'retry in (\d+(?:\.\d+)?)s', err_str, re.IGNORECASE)
+                    if not match:
+                        match = re.search(r'seconds:\s*(\d+)', err_str, re.IGNORECASE)
+                    raw_delay = float(match.group(1)) + 2.0 if match else (15.0 * (attempt + 1))
+                    if raw_delay > 60.0:
+                        # Exceeded temporary rate limit; likely daily quota exhausted
+                        record.latency_ms = int((time.perf_counter() - started) * 1000)
+                        record.status = "error"
+                        record.error_message = f"QuotaExhausted: {exc}"
+                        raise AgentError(f"{self.agent_name}.{tool_name} failed: Daily quota exceeded, retry delay is {raw_delay:.0f}s", record) from exc
+                    time.sleep(raw_delay)
+                    continue
+                record.latency_ms = int((time.perf_counter() - started) * 1000)
+                record.status = "error"
+                record.error_message = f"{type(exc).__name__}: {exc}"
+                raise AgentError(f"{self.agent_name}.{tool_name} failed: {exc}", record) from exc
+
         try:
-            response = self.model.generate_content(prompt)
             record.latency_ms = int((time.perf_counter() - started) * 1000)
 
             usage = _read_usage(response)
@@ -156,20 +182,11 @@ class BaseAgent:
             parsed = response_model(**data)
 
         except (json.JSONDecodeError, ValidationError) as exc:
-            # Latency is already set unless generate_content itself raised.
-            if record.latency_ms is None:
-                record.latency_ms = int((time.perf_counter() - started) * 1000)
             record.status = "error"
             record.error_message = f"{type(exc).__name__}: {exc}"
             raise AgentError(
                 f"{self.agent_name}.{tool_name} returned unparseable output: {exc}", record
             ) from exc
-
-        except Exception as exc:
-            record.latency_ms = int((time.perf_counter() - started) * 1000)
-            record.status = "error"
-            record.error_message = f"{type(exc).__name__}: {exc}"
-            raise AgentError(f"{self.agent_name}.{tool_name} failed: {exc}", record) from exc
 
         record.status = "success"
         record.output_response = data

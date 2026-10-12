@@ -58,6 +58,10 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Dict, List, Optional, Tuple
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 CORPUS_DIR = Path(__file__).resolve().parent / "corpus"
 ANNOTATION_DIR = CORPUS_DIR / "annotations"
 SCHEMA_PATH = CORPUS_DIR / "schema.json"
@@ -389,10 +393,12 @@ def run_retrieval(
     max(k, 10) and the ranked list is sliced for each K, so Recall@1/3/5/10 come
     from a single search per question.
     """
-    from app.database import SessionLocal
+    from app.database import Base, SessionLocal, engine
     from app.models import Tender, TenderChunk
     from app.services.embedder import TextEmbedder
     from app.services.retriever import retrieve
+
+    Base.metadata.create_all(bind=engine)
 
     top_k = max(k, max(RECALL_KS))
     annotations = load_annotations(limit)
@@ -795,11 +801,13 @@ def run_ablation(
     from app.agents.base import AgentError
     from app.agents.monolithic import MonolithicAgent
     from app.agents.orchestrator import AgentOrchestrator
-    from app.database import SessionLocal
+    from app.database import Base, SessionLocal, engine
     from app.models import Tender, TenderChunk
     from app.services.citation_verifier import verify_citations
     from app.services.embedder import TextEmbedder
     from app.services.pdf_processor import PDFProcessor
+
+    Base.metadata.create_all(bind=engine)
 
     if not os.environ.get("GEMINI_API_KEY"):
         print("ERROR: ablation mode requires GEMINI_API_KEY.", file=sys.stderr)

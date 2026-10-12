@@ -1,0 +1,84 @@
+{
+  "mode": "retrieval",
+  "documents": 3,
+  "chunks_indexed": 606,
+  "questions": 57,
+  "top_k": 10,
+  "recall": {
+    "@1": 0.543859649122807,
+    "@3": 0.631578947368421,
+    "@5": 0.6842105263157895,
+    "@10": 0.8245614035087719
+  },
+  "mrr": 0.6178780284043442,
+  "latency_ms": {
+    "mean": 79.75984736970675,
+    "p50": 81.01150000584312,
+    "p95": 94.53619999112561
+  },
+  "embedding_model": "all-MiniLM-L6-v2",
+  "vector_backend": "sqlite-bruteforce-cosine (PostgreSQL unreachable; HNSW index NOT exercised)",
+  "chunking_strategy": "structure",
+  "chunk_size": null,
+  "chunk_overlap": null,
+  "passed": true,
+  "per_document": [
+    {
+      "doc_id": "synth-001",
+      "chunks": 196,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5789473684210527,
+        "@3": 0.631578947368421,
+        "@5": 0.6842105263157895,
+        "@10": 0.7894736842105263
+      },
+      "mrr": 0.6276315789473684,
+      "mean_latency_ms": 79.15844736577894,
+      "missed_question_ids": [
+        1,
+        6,
+        12,
+        13
+      ]
+    },
+    {
+      "doc_id": "synth-002",
+      "chunks": 215,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5789473684210527,
+        "@3": 0.6842105263157895,
+        "@5": 0.6842105263157895,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.6544486215538847,
+      "mean_latency_ms": 89.82180000288952,
+      "missed_question_ids": [
+        5,
+        10,
+        11
+      ]
+    },
+    {
+      "doc_id": "synth-003",
+      "chunks": 195,
+      "questions": 19,
+      "recall": {
+        "@1": 0.47368421052631576,
+        "@3": 0.5789473684210527,
+        "@5": 0.6842105263157895,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.5715538847117795,
+      "mean_latency_ms": 70.2992947404518,
+      "missed_question_ids": [
+        15,
+        16,
+        19
+      ]
+    }
+  ],
+  "elapsed_seconds": 56.136,
+  "timestamp_utc": "2026-10-12T17:17:41.362677+00:00"
+}
