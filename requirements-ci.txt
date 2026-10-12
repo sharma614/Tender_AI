@@ -1,0 +1,27 @@
+# requirements-ci.txt — Minimal dependency set for unit & integration tests in CI.
+#
+# Heavy packages excluded on purpose:
+#   - sentence-transformers / transformers  (pulls PyTorch ~2 GB, breaks cache budget)
+#   - psycopg2-binary                       (requires libpq-dev; all CI tests use SQLite)
+#   - pgvector                              (PostgreSQL extension — irrelevant in CI)
+#   - celery[redis,sqs]                     (broker infra not present in CI)
+#   - redis                                 (same)
+#   - boto3 / kombu[sqs]                    (AWS SDK — no cloud access in CI)
+#
+# Retrieval and ablation eval modes require the full requirements.txt.
+# Smoke and unit tests run fine with this lightweight set.
+
+fastapi>=0.100.0
+uvicorn>=0.20.0
+python-multipart>=0.0.6
+pymupdf>=1.22.0
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+pydantic>=2.0.0
+google-generativeai>=0.7.0
+python-dotenv>=1.0.0
+langgraph>=0.2.0
+jsonschema>=4.0
+httpx>=0.23.0          # FastAPI TestClient dependency
+pytest>=7.0.0
+pytest-cov>=4.0.0
