@@ -7,9 +7,11 @@
 #   - celery[redis,sqs]                     (broker infra not present in CI)
 #   - redis                                 (same)
 #   - boto3 / kombu[sqs]                    (AWS SDK — no cloud access in CI)
+#   - google-generativeai                   (API calls; not imported by test suite)
+#   - langgraph                             (only imported inside lazy task handlers)
 #
 # Retrieval and ablation eval modes require the full requirements.txt.
-# Smoke and unit tests run fine with this lightweight set.
+# Unit/integration tests run fine with this lightweight set.
 
 fastapi>=0.100.0
 uvicorn>=0.20.0
@@ -18,10 +20,10 @@ pymupdf>=1.22.0
 sqlalchemy>=2.0.0
 alembic>=1.13.0
 pydantic>=2.0.0
-google-generativeai>=0.7.0
+google-generativeai>=0.7.0,<1.0.0  # app/agents/base.py imports this at module level
 python-dotenv>=1.0.0
-langgraph>=0.2.0
 jsonschema>=4.0
 httpx>=0.23.0          # FastAPI TestClient dependency
+anyio>=3.6.0           # async support for FastAPI TestClient
 pytest>=7.0.0
 pytest-cov>=4.0.0
