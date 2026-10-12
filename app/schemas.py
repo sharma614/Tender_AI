@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Literal, Optional, Dict, Any, Annotated
 from datetime import datetime
 import operator
@@ -268,8 +268,7 @@ class TenderResponse(TenderBase):
     bid_decision: Optional[Dict] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class OrchestrationResponse(BaseModel):
     status: str
@@ -297,6 +296,5 @@ class JobStatusResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
