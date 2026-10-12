@@ -25,6 +25,12 @@ lambda/*.zip
 # Docker
 .dockerignore
 
+# Elastic Beanstalk — config.yml contains account-specific data, never commit
+.elasticbeanstalk/config.yml
+
+# Frontend local env (has localhost URL overrides)
+frontend/.env.local
+
 # Local benchmark and session artifacts
 SESSION_BENCHMARK_AND_CHANGES.md
 
@@ -36,7 +42,7 @@ frontend/.vercel/
 # Test artifacts & local dev databases
 *.log
 *.db
-eval_results/
+junit/
 .firebase/
 
 # Terraform
@@ -46,3 +52,8 @@ eval_results/
 corpus/
 
 
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml

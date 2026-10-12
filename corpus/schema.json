@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tenderai.local/corpus/schema.json",
+  "title": "TenderAI corpus annotation",
+  "description": "Ground truth for one tender document. Real and synthetic documents use the same contract, so a real-tender corpus can be dropped in without changing eval_harness.py.",
+  "type": "object",
+  "required": ["doc_id", "pdf", "source", "fields", "questions"],
+  "additionalProperties": false,
+  "properties": {
+    "doc_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "description": "Unique identifier; also the annotation filename stem."
+    },
+    "pdf": {
+      "type": "string",
+      "description": "Path to the PDF, relative to the corpus/ directory."
+    },
+    "source": {
+      "enum": ["synthetic", "real"],
+      "description": "Provenance. Papers must report synthetic and real results separately."
+    },
+    "page_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "generator_note": {
+      "type": "string",
+      "description": "Free-text caveat about how the document was produced."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Annotator notes; for real documents, record the source URL and retrieval date here."
+    },
+    "fields": {
+      "type": "object",
+      "description": "Document-level ground truth, mirroring TenderDetails in app/schemas.py. Monetary values use the money object so that surface form and numeric value are both recorded.",
+      "required": ["tender_title"],
+      "properties": {
+        "tender_title": { "type": "string", "minLength": 1 },
+        "submission_deadline": { "type": ["string", "null"] },
+        "minimum_turnover": { "$ref": "#/definitions/money" },
+        "earnest_money_deposit_emd": { "$ref": "#/definitions/money" },
+        "document_fee": { "$ref": "#/definitions/money" },
+        "solvency_certificate_required": { "type": "boolean" },
+        "experience_years": { "type": ["integer", "null"], "minimum": 0 },
+        "contract_duration_months": { "type": ["integer", "null"], "minimum": 0 },
+        "bid_validity_days": { "type": ["integer", "null"], "minimum": 0 },
+        "warranty_years": { "type": ["integer", "null"], "minimum": 0 },
+        "liquidated_damages_rate": { "type": ["string", "null"] },
+        "liquidated_damages_cap": { "type": ["string", "null"] },
+        "performance_guarantee_pct": { "type": ["string", "null"] },
+        "liability_cap": { "type": ["string", "null"] },
+        "joint_ventures_allowed": { "type": ["boolean", "null"] },
+        "subcontracting_limit": { "type": ["string", "null"] },
+        "arbitration_seat": { "type": ["string", "null"] },
+        "bid_language": { "type": ["string", "null"] }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Retrieval evaluation items. A retrieval is scored a hit when gold_span appears in a retrieved chunk after whitespace normalization.",
+      "items": {
+        "type": "object",
+        "required": ["id", "query", "gold_span"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "query": {
+            "type": "string",
+            "minLength": 5,
+            "description": "Natural-language question. Must NOT quote gold_span verbatim, or retrieval is trivially solved by lexical overlap."
+          },
+          "gold_span": {
+            "type": "string",
+            "minLength": 10,
+            "description": "Exact text from the PDF that answers the query. Verified against extracted text by `--mode smoke`."
+          },
+          "gold_page": { "type": ["integer", "null"], "minimum": 1 },
+          "field": {
+            "type": ["string", "null"],
+            "description": "Key in `fields` this question corresponds to, when applicable."
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "money": {
+      "type": ["object", "null"],
+      "required": ["value", "currency", "raw"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Normalized numeric amount in the base unit of `currency`."
+        },
+        "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+        "raw": {
+          "type": "string",
+          "description": "Surface form as written in the document, e.g. 'Rs. 5 crore'. Retained so numeric normalization can be evaluated."
+        }
+      }
+    }
+  }
+}

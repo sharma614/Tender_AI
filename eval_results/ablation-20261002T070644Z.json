@@ -1,0 +1,94 @@
+{
+  "mode": "ablation",
+  "corpus_documents": 5,
+  "k_retrieval": 10,
+  "vector_backend": "sqlite-bruteforce-cosine (PostgreSQL unreachable; HNSW index NOT exercised)",
+  "chunking_strategy": "character",
+  "model": "gemini-3.6-flash",
+  "cost_model": "no list price on file for gemini-3.6-flash; cost not estimated",
+  "grid": {
+    "mono-full": {
+      "description": "Monolithic single call, full document",
+      "agent_mode": null,
+      "documents": 5,
+      "agent_failures": 2,
+      "field_accuracy": {
+        "minimum_turnover": 1.0,
+        "emd": 1.0,
+        "solvency": 0.0,
+        "deadline": 1.0,
+        "title": 1.0
+      },
+      "macro_field_accuracy": 0.8,
+      "mean_total_tokens": 12425.666666666666,
+      "mean_prompt_tokens": 10002.666666666666,
+      "mean_completion_tokens": 761,
+      "estimated_cost_usd": null,
+      "mean_latency_ms": 17865.666666666668,
+      "citation_verification": null
+    },
+    "multi-full": {
+      "description": "Multi-agent, full-context prompts",
+      "agent_mode": "full",
+      "documents": 5,
+      "agent_failures": 5,
+      "field_accuracy": {
+        "minimum_turnover": null,
+        "emd": null,
+        "solvency": null,
+        "deadline": null,
+        "title": null
+      },
+      "macro_field_accuracy": null,
+      "mean_total_tokens": null,
+      "mean_prompt_tokens": null,
+      "mean_completion_tokens": null,
+      "estimated_cost_usd": null,
+      "mean_latency_ms": null,
+      "citation_verification": null
+    },
+    "multi-rag": {
+      "description": "Multi-agent, retrieval-grounded prompts",
+      "agent_mode": "rag",
+      "documents": 5,
+      "agent_failures": 5,
+      "field_accuracy": {
+        "minimum_turnover": null,
+        "emd": null,
+        "solvency": null,
+        "deadline": null,
+        "title": null
+      },
+      "macro_field_accuracy": null,
+      "mean_total_tokens": null,
+      "mean_prompt_tokens": null,
+      "mean_completion_tokens": null,
+      "estimated_cost_usd": null,
+      "mean_latency_ms": null,
+      "citation_verification": null
+    },
+    "multi-rag-cite": {
+      "description": "Multi-agent, retrieval + citation verification",
+      "agent_mode": "rag-cite",
+      "documents": 5,
+      "agent_failures": 5,
+      "field_accuracy": {
+        "minimum_turnover": null,
+        "emd": null,
+        "solvency": null,
+        "deadline": null,
+        "title": null
+      },
+      "macro_field_accuracy": null,
+      "mean_total_tokens": null,
+      "mean_prompt_tokens": null,
+      "mean_completion_tokens": null,
+      "estimated_cost_usd": null,
+      "mean_latency_ms": null,
+      "citation_verification": null
+    }
+  },
+  "passed": false,
+  "elapsed_seconds": 181.195,
+  "timestamp_utc": "2026-10-02T07:06:44.560534+00:00"
+}

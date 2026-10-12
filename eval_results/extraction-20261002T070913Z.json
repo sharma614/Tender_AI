@@ -1,0 +1,38 @@
+{
+  "mode": "extraction",
+  "documents": 1,
+  "agent_failures": 0,
+  "field_accuracy": {
+    "minimum_turnover": 1.0,
+    "emd": 1.0,
+    "solvency": 1.0,
+    "deadline": 1.0,
+    "title": 1.0
+  },
+  "macro_field_accuracy": 1.0,
+  "mean_total_tokens": 11635,
+  "mean_latency_ms": 9745,
+  "model": "gemini-3.6-flash",
+  "passed": true,
+  "per_document": [
+    {
+      "doc_id": "synth-001",
+      "fields": {
+        "minimum_turnover": true,
+        "emd": true,
+        "solvency": true,
+        "deadline": true,
+        "title": true
+      },
+      "extracted": {
+        "minimum_turnover": "Rs. 2500 lakhs in each of the last three audited financial years",
+        "emd": "Rs. 25 lakhs",
+        "submission_deadline": "21 December 2027 at 15:00 hours IST"
+      },
+      "total_tokens": 11635,
+      "latency_ms": 9745
+    }
+  ],
+  "elapsed_seconds": 13.191,
+  "timestamp_utc": "2026-10-02T07:09:13.808762+00:00"
+}
