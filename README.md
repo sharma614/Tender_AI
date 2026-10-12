@@ -12,7 +12,7 @@
 
 **TenderAI** is a production-grade, enterprise-scale automated tender evaluation platform powered by a **Multi-Agent AI System** orchestrated by LangGraph, a **Vite SPA Web Dashboard**, **Retrieval-Augmented Generation (RAG)** with pgvector cosine similarity search, a **Calibrated Bid/No-Bid Decision Engine**, a **Deterministic Compliance Engine**, **Celery/Redis/SQS Asynchronous Queues**, and **AWS Cloud Microservices** provisioned via **Terraform Infrastructure-as-Code**.
 
-Evaluating a 300-page RFP manually can take 20–40 hours. TenderAI reduces this to minutes by decomposing the problem into specialized agents — each grounded in targeted retrieved context rather than the full document — achieving higher accuracy at ~73% fewer tokens than a monolithic LLM approach.
+Evaluating a 300-page RFP manually can take 20–40 hours. TenderAI reduces this to minutes by decomposing the problem into specialized agents — each grounded in targeted retrieved context rather than the full document — achieving 100% extraction accuracy (vs. 80% monolithic baseline) with ~45% faster execution latency.
 
 ---
 
@@ -98,7 +98,7 @@ The system was evaluated using `eval_harness.py` against both the monolithic bas
 
 **Problem:** Monolithic LLM calls on dense tenders suffer from context window degradation (*"Lost in the Middle"*), ungrounded value fabrication, and slow generation latencies.
 
-**Solution:** TenderAI breaks evaluation into specialized, domain-tailored agents. Each agent receives only the top-K retrieved chunks most relevant to its domain (max 12 chunks, 3 per targeted query × up to 5 queries), producing higher signal-to-noise context at ~20× smaller prompt footprint.
+**Solution:** TenderAI breaks evaluation into specialized, domain-tailored agents. Each agent receives only the top-K retrieved chunks most relevant to its domain (max 12 chunks, 3 per targeted query × up to 5 queries), producing higher signal-to-noise context (~12k chars vs. ~45k chars full document text).
 
 **Agent Isolation Design:** Agents never hold a database Session. Because Extraction, Summarization, and Risk run as concurrent LangGraph nodes, a shared SQLAlchemy Session across threads would corrupt state. Each agent returns a `ToolCallRecord`; the orchestrator's `_persist` node writes them single-threaded after the graph completes.
 
@@ -505,7 +505,7 @@ Unlike synthetic estimates or speculative claims, all TenderAI benchmarks are em
 | **Character (1000/200)** | 996 | **59.94%** | **73.39%** | **77.49%** | **85.67%** | **0.6808** | **30.58 ms** | **42.50 ms** |
 | **Structure-Aware** | 3,562 | **55.26%** | **65.79%** | **69.01%** | **80.12%** | **0.6205** | **78.88 ms** | **93.20 ms** |
 
-> 📌 **Key Architectural Insight:** Fixed-size character windowing (1000 chars, 200 overlap) achieved **+8.48% higher Recall@5** (77.49% vs 69.01%) and **2.6× faster retrieval latency** than heading-based structure splitting, due to chunk size uniformity and tighter embedding density.
+> 📌 **Key Architectural Finding:** Fixed-size character windowing (1000 chars, 200 overlap) achieved **+8.48% higher Recall@5** (77.49% vs 69.01%) and **2.6× faster retrieval latency** than heading-based structure splitting. The structure-aware strategy produced over 3.5× more chunks (3,562 vs. 996 chunks), resulting in higher search-space overhead and lower recall on short clauses.
 
 #### 2. Corpus Integrity & Smoke Test (Zero Data Leakage)
 *Artifact: `eval_results/smoke-20261012T134122Z.json`*
@@ -542,11 +542,11 @@ The `BidDecisionEngine` (`app/services/bid_decision_engine.py`) produces a fully
 ```python
 BidDecision(
     recommendation="GO_BID" | "CONDITIONAL_BID" | "NO_BID",
-    composite_score=79.0,          # 0–100
+    composite_score=81.0,          # (87.0 × 0.50) + (75.0 × 0.30) + ((100 − 25.0) × 0.20) = 81.0
     calibrated_confidence=0.87,    # 0.0–1.0
-    compliance_score=87.0,         # sub-score
-    risk_penalty=25.0,             # subtracted points
-    technical_fit_score=75.0,      # sub-score
+    compliance_score=87.0,         # sub-score (weight: 50%)
+    risk_penalty=25.0,             # subtracted from 100 before 20% weighting
+    technical_fit_score=75.0,      # sub-score (weight: 30%)
     key_decision_factors=[...],    # human-readable factors
     explanation="GO_BID recommended. Strong alignment...",
 )
