@@ -16,7 +16,7 @@ class Tender(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     raw_text = Column(Text, nullable=True)
-    s3_key = Column(String, nullable=True, index=True)   # S3 object key when uploaded via AWS path
+    storage_path = Column(String, nullable=True, index=True)  # Supabase Storage path: "{bucket}/{object}"
     
     # Persistent storage for structured analysis results
     summary = Column(JSON, nullable=True)

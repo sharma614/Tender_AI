@@ -3,9 +3,10 @@ app/tasks.py — Background Celery tasks for tender processing.
 
 Flow:
   1. Update job status → processing
-  2. Run embed pipeline (PDF chunk + pgvector insert, with page provenance)
-  3. Run the LangGraph multi-agent orchestration
-  4. Update job status → completed, store result in DB
+  2. Upload raw PDF to Supabase Storage (if bytes provided)
+  3. Run embed pipeline (PDF chunk + pgvector insert, with page provenance)
+  4. Run the LangGraph multi-agent orchestration
+  5. Update job status → completed, store result in DB
 
 Retry / Backoff strategy:
   Attempt 1 → wait 30s  → retry
@@ -17,13 +18,12 @@ Dead-letter path:
   The job row in PostgreSQL is updated to status="dead_letter" with the final
   error message stored. No further re-queuing occurs.
 
-The core pipeline lives in the plain function `run_pipeline` so that both the
-direct-upload task and the S3-triggered task can share it. Previously the S3 task
-called `process_tender_job(self, ...)` directly, passing its own `self` into
-another task's body — which made `self.request.retries` and therefore the
-retry/dead-letter bookkeeping refer to the wrong task.
+The core pipeline lives in the plain function `run_pipeline` so that the
+calling task owns retry policy and `run_pipeline` can be called directly
+(inline fallback when Redis is unavailable on first boot).
 """
 import datetime
+import os
 
 from celery import Task
 
@@ -52,18 +52,53 @@ def _update_job_status(db, job_id: int, **kwargs):
     return job
 
 
+def _upload_to_supabase(file_bytes: bytes, object_name: str) -> str | None:
+    """
+    Upload a PDF to Supabase Storage and return the storage path.
+    Returns None (silently) when SUPABASE_URL / SUPABASE_SERVICE_KEY are not set
+    (e.g. local dev without Supabase configured).
+    """
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    bucket = os.environ.get("SUPABASE_BUCKET", "tenders")
+
+    if not supabase_url or not supabase_key:
+        return None
+
+    try:
+        from supabase import create_client
+        client = create_client(supabase_url, supabase_key)
+        client.storage.from_(bucket).upload(
+            object_name,
+            file_bytes,
+            file_options={"content-type": "application/pdf", "upsert": "true"},
+        )
+        return f"{bucket}/{object_name}"
+    except Exception as exc:
+        # Storage upload failure is non-fatal: analysis can proceed without it.
+        print(f"[Storage] Supabase upload failed for {object_name}: {exc}")
+        return None
+
+
 def run_pipeline(
     job_id: int,
     tender_id: int,
     raw_text: str,
     company_profile_dict: dict = None,
     celery_task_id: str = None,
+    file_bytes: bytes = None,
+    original_filename: str = None,
 ) -> dict:
     """
     Embed chunks and run the agent graph for one tender.
 
     Plain function, no Celery binding — raises on failure and lets the calling
-    task own retry policy. Shared by both task entry points.
+    task own retry policy. Shared by all task entry points.
+
+    Parameters
+    ----------
+    file_bytes       : Original PDF bytes — uploaded to Supabase Storage when provided.
+    original_filename: Used as the Supabase Storage object name.
     """
     # Lazy imports — heavy ML/LLM libs only load in the Celery worker process,
     # not when the task module is imported by FastAPI
@@ -78,7 +113,19 @@ def run_pipeline(
     try:
         _update_job_status(db, job_id, status="processing", celery_task_id=celery_task_id)
 
-        # --- Step 1: Embed chunks into pgvector (with page provenance) ---
+        # --- Step 1: Upload PDF to Supabase Storage (optional, non-fatal) ---
+        if file_bytes and original_filename:
+            storage_path = _upload_to_supabase(
+                file_bytes,
+                f"{tender_id}/{original_filename}",
+            )
+            if storage_path:
+                tender = db.query(Tender).filter(Tender.id == tender_id).first()
+                if tender:
+                    tender.storage_path = storage_path
+                    db.commit()
+
+        # --- Step 2: Embed chunks into pgvector (with page provenance) ---
         chunks = PDFProcessor.chunk_text(raw_text, chunk_size=1000, chunk_overlap=200)
         chunk_texts = [c["text"] for c in chunks]
         embeddings = embedder.embed_batch(chunk_texts)
@@ -94,7 +141,7 @@ def run_pipeline(
             ))
         db.commit()
 
-        # --- Step 2: Run multi-agent orchestration ---
+        # --- Step 3: Run multi-agent orchestration ---
         company_profile = None
         if company_profile_dict:
             from .schemas import CompanyProfile
@@ -107,7 +154,7 @@ def run_pipeline(
             company_profile=company_profile,
         )
 
-        # --- Step 3: Mark job completed, store result ---
+        # --- Step 4: Mark job completed, store result ---
         _update_job_status(
             db, job_id,
             status="completed",
@@ -169,7 +216,15 @@ def _handle_failure(self: Task, job_id: int, tender_id: int, exc: Exception):
     # Do NOT use autoretry_for here — we handle retries manually so we can
     # update DB status on each attempt and implement dead-letter logic.
 )
-def process_tender_job(self: Task, job_id: int, tender_id: int, raw_text: str, company_profile_dict: dict = None):
+def process_tender_job(
+    self: Task,
+    job_id: int,
+    tender_id: int,
+    raw_text: str,
+    company_profile_dict: dict = None,
+    file_bytes: bytes = None,
+    original_filename: str = None,
+):
     """
     Celery task: embed chunks and run multi-agent orchestration for a tender.
 
@@ -179,6 +234,8 @@ def process_tender_job(self: Task, job_id: int, tender_id: int, raw_text: str, c
     tender_id            : PK of the Tender row already persisted by the API
     raw_text             : Full extracted text from the uploaded PDF
     company_profile_dict : Optional dict matching CompanyProfile schema
+    file_bytes           : Original PDF bytes for Supabase Storage upload
+    original_filename    : Filename used as the Storage object name
     """
     try:
         return run_pipeline(
@@ -187,80 +244,8 @@ def process_tender_job(self: Task, job_id: int, tender_id: int, raw_text: str, c
             raw_text=raw_text,
             company_profile_dict=company_profile_dict,
             celery_task_id=self.request.id,
-        )
-    except Exception as exc:
-        raise _handle_failure(self, job_id, tender_id, exc)
-
-
-# ===========================================================================
-# S3-Triggered Entry Point (called by the Lambda → SQS path on AWS)
-# ===========================================================================
-
-@celery_app.task(
-    bind=True,
-    name="app.tasks.process_tender_job_from_s3",
-    max_retries=MAX_RETRIES,
-)
-def process_tender_job_from_s3(self: Task, s3_bucket: str, s3_key: str, company_profile_dict: dict = None):
-    """
-    S3-aware task entry point — used exclusively on AWS.
-
-    The Lambda trigger publishes a message with { s3_bucket, s3_key } instead of
-    raw text. This task downloads the PDF, extracts text, creates Tender + Job
-    rows, then delegates to the shared `run_pipeline`.
-    """
-    import boto3
-
-    from .services.pdf_processor import PDFProcessor
-
-    db = SessionLocal()
-    job_id = None
-    tender_id = None
-
-    try:
-        # --- Step 1: Download PDF from S3 ---
-        s3 = boto3.client("s3")
-        response = s3.get_object(Bucket=s3_bucket, Key=s3_key)
-        file_bytes = response["Body"].read()
-
-        # --- Step 2: Extract text ---
-        raw_text = PDFProcessor.extract_text_from_bytes(file_bytes)
-        if not raw_text.strip():
-            raise ValueError(f"No extractable text found in s3://{s3_bucket}/{s3_key}")
-
-        # --- Step 3: Create DB rows ---
-        tender_title = s3_key.split("/")[-1].replace(".pdf", "").replace("_", " ").replace("-", " ")
-        db_tender = Tender(title=tender_title, raw_text=raw_text, s3_key=s3_key)
-        db.add(db_tender)
-        db.commit()
-        db.refresh(db_tender)
-        tender_id = db_tender.id
-
-        db_job = Job(tender_id=tender_id, status="pending", celery_task_id=self.request.id)
-        db.add(db_job)
-        db.commit()
-        db.refresh(db_job)
-        job_id = db_job.id
-    except Exception as exc:
-        db.close()
-        attempt = self.request.retries
-        if attempt >= MAX_RETRIES:
-            raise exc
-        raise self.retry(exc=exc, countdown=_get_backoff(attempt))
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
-
-    # --- Step 4: Delegate to the shared pipeline, with this task's own retry state ---
-    try:
-        return run_pipeline(
-            job_id=job_id,
-            tender_id=tender_id,
-            raw_text=raw_text,
-            company_profile_dict=company_profile_dict,
-            celery_task_id=self.request.id,
+            file_bytes=file_bytes,
+            original_filename=original_filename,
         )
     except Exception as exc:
         raise _handle_failure(self, job_id, tender_id, exc)

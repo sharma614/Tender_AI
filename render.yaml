@@ -1,0 +1,68 @@
+# render.yaml — Render Blueprint for TenderAI
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Two services:
+#   1. api     — FastAPI web service  (Dockerfile.api)
+#   2. worker  — Celery worker        (Dockerfile.worker)
+#
+# Both services share environment variables via envVarGroups.
+# Set secret values in the Render dashboard after connecting the repo.
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. FastAPI API
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: tenderai-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: starter          # /mo — no sleep, 512 MB RAM
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: tenderai-secrets
+      - key: PORT
+        value: "8000"
+
+  # ---------------------------------------------------------------------------
+  # 2. Celery Background Worker
+  # ---------------------------------------------------------------------------
+  - type: worker
+    name: tenderai-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile.worker
+    plan: starter          # /mo — persistent worker
+    envVars:
+      - fromGroup: tenderai-secrets
+
+# ---------------------------------------------------------------------------
+# Shared env var group — set secret values in the Render dashboard.
+# ---------------------------------------------------------------------------
+envVarGroups:
+  - name: tenderai-secrets
+    envVars:
+      # Supabase Postgres (Transaction mode connection string)
+      - key: DATABASE_URL
+        sync: false        # Set in dashboard: postgresql://...@pooler.supabase.com:5432/postgres
+
+      # Upstash Redis (TLS — use the rediss:// URL from Upstash console)
+      - key: CELERY_BROKER_URL
+        sync: false        # Set in dashboard: rediss://:<password>@<host>:6379
+
+      - key: CELERY_RESULT_BACKEND
+        sync: false        # Same as CELERY_BROKER_URL
+
+      # Gemini API
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # Supabase Storage
+      - key: SUPABASE_URL
+        sync: false        # https://<project-ref>.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        sync: false        # service_role key (from API settings)
+      - key: SUPABASE_BUCKET
+        value: "tenders"
+
+      # Embedding model (default works; override to use a different HuggingFace model)
+      - key: EMBEDDING_MODEL_NAME
+        value: "all-MiniLM-L6-v2"
