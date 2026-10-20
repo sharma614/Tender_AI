@@ -7,10 +7,13 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2%2B-FF6B35.svg)](https://github.com/langchain-ai/langgraph)
 [![Google Gemini](https://img.shields.io/badge/Gemini-3.6--flash-4285F4.svg)](https://ai.google.dev)
 [![pgvector](https://img.shields.io/badge/pgvector-HNSW%20Index-336791.svg)](https://github.com/pgvector/pgvector)
-[![Terraform](https://img.shields.io/badge/AWS%20Terraform-IaC-7B42BC.svg)](https://terraform.io)
+[![Render](https://img.shields.io/badge/Render-Cloud%20Services-46E3B7.svg)](https://render.com)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20%26%20Storage-3ECF8E.svg)](https://supabase.com)
+[![Upstash](https://img.shields.io/badge/Upstash-Redis%20Broker-00E599.svg)](https://upstash.com)
+[![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**TenderAI** is a production-grade, enterprise-scale automated tender evaluation platform powered by a **Multi-Agent AI System** orchestrated by LangGraph, a **Vite SPA Web Dashboard**, **Retrieval-Augmented Generation (RAG)** with pgvector cosine similarity search, a **Calibrated Bid/No-Bid Decision Engine**, a **Deterministic Compliance Engine**, **Celery/Redis/SQS Asynchronous Queues**, and **AWS Cloud Microservices** provisioned via **Terraform Infrastructure-as-Code**.
+**TenderAI** is a production-grade, enterprise-scale automated tender evaluation platform powered by a **Multi-Agent AI System** orchestrated by LangGraph, a **Vite SPA Web Dashboard** (hosted on Firebase), **Retrieval-Augmented Generation (RAG)** with pgvector cosine similarity search, a **Calibrated Bid/No-Bid Decision Engine**, a **Deterministic Compliance Engine**, and **Celery/Upstash Redis Asynchronous Queues** deployed seamlessly on **Render** (with Supabase PostgreSQL & Storage), alongside alternative **AWS Cloud Microservices** provisioned via **Terraform Infrastructure-as-Code**.
 
 Evaluating a 300-page RFP manually can take 20–40 hours. TenderAI reduces this to minutes by decomposing the problem into specialized agents — each grounded in targeted retrieved context rather than the full document — achieving 100% extraction accuracy (vs. 80% monolithic baseline) with ~45% faster execution latency.
 
@@ -23,12 +26,13 @@ Evaluating a 300-page RFP manually can take 20–40 hours. TenderAI reduces this
 - [Agent Roster](#-agent-roster)
 - [Tech Stack](#-tech-stack)
 - [Project Structure](#-project-structure)
-- [Quick Start (Zero Docker)](#-quick-start-local-development--zero-docker-required)
+- [Quick Start (Local Development — Zero Docker Required)](#-quick-start-local-development--zero-docker-required)
 - [Environment Variables](#-environment-variables)
 - [API Reference](#-api-reference)
 - [Evaluation Harness & Empirical Benchmarks](#-evaluation-harness)
 - [Bid Decision Engine](#-bid--no-bid-decision-engine)
-- [AWS Cloud Infrastructure](#-aws-cloud-infrastructure-terraform)
+- [Production Cloud Deployment (Render + Supabase + Upstash + Firebase)](#-production-cloud-deployment-render--supabase--upstash--firebase)
+- [AWS Cloud Infrastructure (Terraform Alternative)](#-aws-cloud-infrastructure-terraform-alternative)
 - [Testing](#-testing)
 - [License](#-license)
 
@@ -38,13 +42,13 @@ Evaluating a 300-page RFP manually can take 20–40 hours. TenderAI reduces this
 
 ```mermaid
 graph TD
-    User([User / Web Dashboard]) -->|1. Upload RFP Document| S3[AWS S3 Bucket / REST API]
-    S3 -->|2. S3 ObjectCreated Trigger| Lambda[AWS Lambda Function]
-    Lambda -->|3. Publish Event| SQS[AWS SQS Queue / Redis Broker]
-    SQS -->|4. Consume Task| Worker[Celery Worker Cluster]
+    User([User / Web Dashboard — Firebase Hosting]) -->|1. Upload RFP Document| API[FastAPI Web Engine — Render]
+    API -->|2. Stream & Save PDF| SupaStorage[Supabase Storage Bucket: tenders]
+    API -->|3. Enqueue Background Job| Redis[Upstash Redis Broker / rediss://]
+    Redis -->|4. Consume Task| Worker[Celery Worker Cluster — Render]
 
     subgraph Multi-Agent Processing Engine
-        Worker -->|5. Chunk & Embed| PGVector[(PostgreSQL + pgvector / SQLite)]
+        Worker -->|5. Chunk & Embed| PGVector[(Supabase PostgreSQL + pgvector)]
         Worker -->|6. Orchestrate| LangGraph[LangGraph Central Orchestrator]
 
         LangGraph -->|Superstep 1 — concurrent| Agent1[Metadata Extraction Agent]
@@ -58,9 +62,9 @@ graph TD
         EvalHarness[Eval Harness] -->|"Ablation Grid & Retrieval Eval"| PGVector
     end
 
-    Engine -->|7. Persist Structured Results| MainDB[(PostgreSQL Main DB)]
-    MainDB -->|8. Fetch Results| API[FastAPI Web Engine]
-    API -->|9. Serve Responses & Metrics| User
+    Engine -->|7. Persist Structured Results| MainDB[(Supabase PostgreSQL Main DB)]
+    MainDB -->|8. Fetch Results| API
+    API -->|9. Serve Responses & Live Metrics| User
 ```
 
 **9-Step Data Flow:**
@@ -68,14 +72,14 @@ graph TD
 | Step | Component | Action |
 |:---:|:---|:---|
 | 1 | User → FastAPI | Upload RFP PDF via `POST /upload` — returns `202 Accepted` + `job_id` instantly |
-| 2 | S3 → Lambda | `ObjectCreated` event triggers Lambda on AWS |
-| 3 | Lambda → SQS | Lambda publishes job message to SQS queue |
-| 4 | SQS → Celery | Worker consumes task from SQS (or Redis in local dev) |
-| 5 | Celery → pgvector | PDF text extracted, chunked (1000/200), embedded, stored in pgvector |
+| 2 | FastAPI → Supabase Storage | PDF binary saved to Supabase Storage bucket (`tenders`), saving file path to `Tender.storage_path` |
+| 3 | FastAPI → Upstash Redis | API dispatches `process_tender_job` Celery task via TLS-encrypted Redis broker (`rediss://`) |
+| 4 | Redis → Celery Worker | Dedicated background worker on Render consumes job with exponential backoff fault tolerance |
+| 5 | Celery → pgvector | PDF extracted via PyMuPDF/OCR, chunked (1000/200), embedded (384d), and stored in Supabase pgvector |
 | 6 | Celery → LangGraph | Multi-agent graph executes: Extraction, Summary, Risk (concurrent) → Compliance → Bid Decision |
-| 7 | Engine → PostgreSQL | Structured analysis results persisted to main DB |
-| 8 | PostgreSQL → FastAPI | Client polls `GET /jobs/{job_id}` to receive results |
-| 9 | FastAPI → User | JSON response with full analysis, bid recommendation, and metrics |
+| 7 | Engine → PostgreSQL | Structured facts, risk items, compliance checks, and bid scores committed to Supabase DB |
+| 8 | PostgreSQL → FastAPI | Client polls `GET /jobs/{job_id}` to retrieve comprehensive evaluation state |
+| 9 | FastAPI → User | Dashboard visualizes executive summary, compliance breakdown, risk ledger, and bid verdict |
 
 ---
 
@@ -260,29 +264,31 @@ All agents extend `BaseAgent` (`app/agents/base.py`) which:
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology | Version |
+| Layer | Technology | Version / Provider |
 |:---|:---|:---|
 | Language | Python | 3.11 / 3.12 |
 | API Framework | FastAPI + Uvicorn | ≥ 0.100 |
 | Frontend Engine | Vite (SPA, Fast Dev Server & HMR) | ≥ 5.4 |
-| UI & Styling | Vanilla CSS Design System + Modern DOM | — |
+| UI & Styling | Vanilla CSS Design System + Modern DOM | Responsive Glassmorphism |
 | Data Validation | Pydantic v2 | ≥ 2.0 |
 | ORM | SQLAlchemy | ≥ 2.0 |
 | DB Migrations | Alembic | ≥ 1.13 |
+| Database Driver | psycopg v3 (`psycopg[binary]`) | ≥ 3.1.0 |
 | LLM Provider | Google Gemini (`gemini-3.6-flash`) | ≥ 0.7.0 |
 | Agent Orchestration | LangGraph | ≥ 0.2 |
-| LLM Toolkit | LangChain | — |
-| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`) | ≥ 3.0, < 4.0 |
-| Vector Search | PostgreSQL + pgvector (HNSW) / SQLite Fallback | ≥ 0.2 |
+| LLM Toolkit | LangChain | ≥ 0.2 |
+| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`) | ≥ 3.0, < 4.0 (384-dim dense) |
+| Vector Search & Relational DB | Supabase PostgreSQL + pgvector (HNSW) / Local SQLite | Production Managed |
+| Object Storage | Supabase Storage (`tenders` bucket) | Managed Cloud S3-compatible |
 | Task Queue | Celery | ≥ 5.3 |
-| Message Broker | Redis (local) / AWS SQS (prod) | ≥ 5.0 |
+| Message Broker | Upstash Redis (TLS `rediss://`) / Local Redis | Serverless Cloud Redis |
+| Application Hosting | Render (Web Service `tenderai-api` + Background Worker `tenderai-worker`) | Container Blueprint |
+| Frontend Hosting | Firebase Hosting | Production CDN |
 | PDF Processing | PyMuPDF (`fitz`) | ≥ 1.24 |
 | OCR Fallback | Tesseract + Pillow | — |
-| Cloud Infrastructure | AWS (S3, ECS Fargate, Lambda, SQS, RDS) | — |
-| IaC | HashiCorp Terraform | — |
-| CI/CD | GitHub Actions | — |
-| Schema Validation | jsonschema | ≥ 4.0 |
-| Testing | pytest | — |
+| Alternative Cloud IaC | AWS Terraform (ECS Fargate, S3, SQS, RDS, VPC) | `infra/terraform/` |
+| CI/CD | GitHub Actions | Automated lint, unit & integration test suite |
+| Testing | pytest + pytest-asyncio | 100% passing test suite |
 
 ---
 
@@ -301,15 +307,15 @@ TenderAI/
 │   │   └── monolithic.py         # MonolithicAgent — single-call baseline
 │   ├── services/
 │   │   ├── pdf_processor.py      # PyMuPDF extraction, OCR fallback, chunking strategies
-│   │   ├── embedder.py           # sentence-transformers TextEmbedder
+│   │   ├── embedder.py           # sentence-transformers TextEmbedder (384d)
 │   │   ├── retriever.py          # pgvector / SQLite cosine retrieval
 │   │   ├── bid_decision_engine.py # Composite score, recommendation, calibrated confidence
 │   │   ├── compliance_engine.py  # Deterministic numeric compliance checks
 │   │   └── citation_verifier.py  # Substring-based hallucination detection
-│   ├── main.py                   # FastAPI app, endpoints, startup
-│   ├── tasks.py                  # Celery tasks (direct upload + S3-triggered)
-│   ├── worker.py                 # Celery app configuration
-│   ├── models.py                 # SQLAlchemy ORM models (Tender, TenderChunk, Job, ToolCall)
+│   ├── main.py                   # FastAPI app, endpoints, startup, direct file upload
+│   ├── tasks.py                  # Celery background pipeline & Supabase Storage upload helper
+│   ├── worker.py                 # Celery app config with Upstash Redis TLS support
+│   ├── models.py                 # SQLAlchemy ORM models (Tender with storage_path, TenderChunk, Job, ToolCall)
 │   ├── schemas.py                # Pydantic v2 schemas (AgentState, BidDecision, etc.)
 │   ├── database.py               # DB engine, SessionLocal, pgvector/SQLite fallback
 │   └── metrics.py                # /admin/metrics observability endpoint
@@ -320,13 +326,19 @@ TenderAI/
 │   ├── index.html                # Vite SPA entrypoint
 │   ├── vite.config.js            # Vite server & proxy configuration
 │   └── package.json              # Vite scripts (dev, build, preview)
+├── public/                       # Static production web assets for Firebase Hosting
 ├── eval_harness.py               # Evaluation harness (smoke / retrieval / extraction / ablation)
 ├── eval_results/                 # Recorded empirical benchmark JSON runs (reproducible tables)
 ├── corpus/                       # Synthetic tender PDFs + annotation JSON files
-├── infra/terraform/              # Terraform IaC (ECS, S3, SQS, Lambda, RDS, IAM, VPC)
-├── alembic/                      # DB schema migrations
+├── render.yaml                   # Render Blueprint: tenderai-api web service + tenderai-worker background service
+├── firebase.json                 # Firebase Hosting configuration & SPA routing rewrites
+├── .env.example                  # Environment configuration template for local & production
+├── Dockerfile.api                # Container definition for FastAPI API
+├── Dockerfile.worker             # Container definition for Celery Worker
+├── infra/terraform/              # AWS Terraform IaC alternative (ECS, S3, SQS, RDS, VPC)
+├── alembic/                      # Alembic migrations (including 0003_rename_s3_key_to_storage_path.py)
 ├── tests/                        # pytest unit & integration tests
-├── requirements.txt              # Pinned Python dependencies
+├── requirements.txt              # Production Python dependencies (includes supabase, psycopg[binary])
 └── README.md
 ```
 
@@ -400,19 +412,25 @@ celery -A app.worker worker --loglevel=info
 
 ## ⚙️ Environment Variables
 
-| Variable | Required | Description |
-|:---|:---:|:---|
-| `GEMINI_API_KEY` | ✅ | Google Gemini API key |
-| `GEMINI_MODEL_NAME` | ➖ | LLM model ID (default: `gemini-3.6-flash`) |
-| `DATABASE_URL` | ✅ | PostgreSQL DSN (falls back to SQLite if unreachable) |
-| `CELERY_BROKER_URL` | ✅ | Redis URL for local dev (`redis://localhost:6379/0`) |
-| `AWS_ACCESS_KEY_ID` | ☁️ | AWS credentials (prod only) |
-| `AWS_SECRET_ACCESS_KEY` | ☁️ | AWS credentials (prod only) |
-| `AWS_DEFAULT_REGION` | ☁️ | AWS region (prod only) |
-| `SQS_QUEUE_URL` | ☁️ | SQS queue URL (prod only) |
-| `EMBEDDING_MODEL_NAME` | ➖ | Embedding model (default: `all-MiniLM-L6-v2`) |
+Copy `.env.example` to `.env` to configure your environment:
 
-> ✅ Required &nbsp;&nbsp; ➖ Optional &nbsp;&nbsp; ☁️ AWS production only
+| Variable | Tier | Description |
+|:---|:---:|:---|
+| `GEMINI_API_KEY` | ✅ Required | Google Gemini API key for agent reasoning and extraction |
+| `GEMINI_MODEL_NAME` | ➖ Optional | LLM model ID (default: `gemini-3.6-flash`) |
+| `DATABASE_URL` | 🌐 Prod / Dev | Supabase PostgreSQL Transaction Pooler connection string (`postgresql://...`). Leave empty in local dev to automatically fall back to SQLite (`tenderai_dev.db`) |
+| `CELERY_BROKER_URL` | 🌐 Prod / Dev | Upstash Redis TLS URL (`rediss://:<password>@<host>:6379`) for Render/production or `redis://localhost:6379/0` for local Docker Redis |
+| `CELERY_RESULT_BACKEND` | 🌐 Prod / Dev | Same as `CELERY_BROKER_URL` for Celery async task state persistence |
+| `SUPABASE_URL` | 📦 Storage | Supabase project URL (`https://<project-ref>.supabase.co`) |
+| `SUPABASE_SERVICE_KEY` | 📦 Storage | Supabase `service_role` secret key (Settings → API) |
+| `SUPABASE_BUCKET` | 📦 Storage | Supabase Storage bucket for PDF documents (default: `tenders`) |
+| `EMBEDDING_MODEL_NAME` | ➖ Optional | HuggingFace embedding model (default: `all-MiniLM-L6-v2`) |
+| `AWS_ACCESS_KEY_ID` | ☁️ AWS IaC | AWS credentials (only when deploying via `infra/terraform/`) |
+| `AWS_SECRET_ACCESS_KEY` | ☁️ AWS IaC | AWS credentials (only when deploying via `infra/terraform/`) |
+| `AWS_DEFAULT_REGION` | ☁️ AWS IaC | AWS region (e.g. `ap-south-1`) |
+| `SQS_QUEUE_URL` | ☁️ AWS IaC | SQS queue endpoint URL |
+
+> ✅ Required &nbsp;&nbsp; 🌐 Managed Cloud / Local &nbsp;&nbsp; 📦 Supabase Storage &nbsp;&nbsp; ➖ Optional &nbsp;&nbsp; ☁️ AWS Terraform only
 
 ---
 
@@ -561,7 +579,83 @@ CompositeScore = (ComplianceScore × 0.50)
 
 ---
 
-## ☁️ AWS Cloud Infrastructure (Terraform)
+## ☁️ Production Cloud Deployment (Render + Supabase + Upstash + Firebase)
+
+TenderAI provides a high-performance, cost-effective, zero-maintenance cloud architecture using modern managed platforms:
+- **FastAPI Backend & Celery Worker**: Hosted on [Render](https://render.com) using container runtimes declared in `render.yaml`.
+- **Database & Vector Store**: Managed PostgreSQL with `pgvector` on [Supabase](https://supabase.com).
+- **PDF File Storage**: Supabase Storage (`tenders` bucket) replacing AWS S3.
+- **Asynchronous Message Broker**: Serverless Redis with TLS encryption on [Upstash](https://upstash.com).
+- **Frontend SPA**: Global edge static hosting on [Firebase Hosting](https://firebase.google.com).
+
+### Step 1: Provision Supabase (PostgreSQL, pgvector & Storage)
+1. Sign in to [Supabase](https://supabase.com) and create a new project.
+2. **Enable pgvector**: Open the Supabase **SQL Editor** and run:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ```
+3. **Get Database Connection String**: Navigate to **Project Settings → Database → Connection string**, select the **Transaction** mode tab (Port `5432` / pooler), and copy the URI:
+   ```
+   postgresql://postgres.<project-ref>:<db-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+4. **Create PDF Storage Bucket**: Go to **Storage → New bucket**, name it `tenders`, and configure public read access or signed URL access.
+5. **Collect API Credentials**: Under **Project Settings → API**, copy:
+   - Project URL (`SUPABASE_URL`)
+   - `service_role` secret key (`SUPABASE_SERVICE_KEY`)
+
+### Step 2: Provision Upstash Redis (Celery Message Broker)
+1. Sign in to [Upstash Console](https://console.upstash.com) and create a new Redis database.
+2. Under the **Connect** section, copy the TLS-enabled connection string starting with `rediss://`:
+   ```
+   rediss://:<password>@<host>:6379
+   ```
+
+### Step 3: Deploy Backend & Worker on Render via Blueprint
+TenderAI includes a complete `render.yaml` Blueprint that deploys both the FastAPI web service (`tenderai-api`) and Celery worker (`tenderai-worker`) with zero manual server configuration.
+
+1. Push your repository to GitHub.
+2. Sign in to the [Render Dashboard](https://dashboard.render.com).
+3. Click **New + → Blueprint** and select your repository.
+4. Render will parse `render.yaml` and prompt you to fill in the shared secret environment variables (`tenderai-secrets` group):
+   - `DATABASE_URL`: Your Supabase connection string.
+   - `CELERY_BROKER_URL`: Your Upstash Redis `rediss://` URL.
+   - `CELERY_RESULT_BACKEND`: Same Upstash Redis `rediss://` URL.
+   - `GEMINI_API_KEY`: Your Google Gemini API key.
+   - `SUPABASE_URL`: `https://<project-ref>.supabase.co`
+   - `SUPABASE_SERVICE_KEY`: Supabase `service_role` secret.
+   - `SUPABASE_BUCKET`: `tenders`
+5. Click **Apply**. Render will build and deploy both containers (`Dockerfile.api` on port 8000 and `Dockerfile.worker`).
+
+### Step 4: Run Database Migrations
+Run Alembic migrations to create tables and vector indexes on Supabase:
+```bash
+# Locally with your DATABASE_URL set in .env:
+alembic upgrade head
+```
+*(Or execute `alembic upgrade head` via the Render Web Shell on the `tenderai-api` service).*
+
+### Step 5: Deploy Frontend to Firebase Hosting
+1. Install Firebase CLI (if not already installed):
+   ```bash
+   npm install -g firebase-tools
+   firebase login
+   ```
+2. Build the Vite production bundle:
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   cd ..
+   ```
+3. Deploy to Firebase Hosting:
+   ```bash
+   firebase deploy --only hosting
+   ```
+Your web dashboard is now live globally on Firebase CDN, streaming tenders directly to your Render API and Supabase/Upstash backend!
+
+---
+
+## ☁️ AWS Cloud Infrastructure (Terraform Alternative)
 
 Full infrastructure defined as code in `infra/terraform/`:
 

@@ -7,6 +7,11 @@ __pycache__/
 venv/
 env/
 
+# Research paper & documents
+TenderAI_Research_Paper.docx
+TenderAI_Research_Paper.md
+*.docx
+
 # Environment files — never commit real secrets
 .env
 !.env.example
@@ -18,23 +23,13 @@ env/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
+*.tfplan
 
 # Lambda deployment packages
 lambda/*.zip
 
-# Docker
-.dockerignore
-
-# Elastic Beanstalk — config.yml contains account-specific data, never commit
-.elasticbeanstalk/config.yml
-
-# Frontend local env (has localhost URL overrides)
+# Frontend local env & build artifacts
 frontend/.env.local
-
-# Local benchmark and session artifacts
-SESSION_BENCHMARK_AND_CHANGES.md
-
-# Frontend dependency and build output
 frontend/node_modules/
 frontend/dist/
 frontend/.vercel/
@@ -43,17 +38,12 @@ frontend/.vercel/
 *.log
 *.db
 junit/
+.pytest_cache/
 .firebase/
 
-# Terraform
-*.tfplan
+# Local benchmark and scratch artifacts
+SESSION_BENCHMARK_AND_CHANGES.md
+foobar_nonexistent_dir/
 
-# Synthetic tenders & generation corpus
-corpus/
-
-
-
-# Elastic Beanstalk Files
-.elasticbeanstalk/*
-!.elasticbeanstalk/*.cfg.yml
-!.elasticbeanstalk/*.global.yml
+# Elastic Beanstalk (legacy)
+.elasticbeanstalk/
