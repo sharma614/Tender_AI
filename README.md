@@ -1,5 +1,5 @@
 # TenderAI: Enterprise Multi-Agent Tender Analysis, Risk Evaluation & Compliance System
-
+ 
 [![CI/CD Pipeline](https://github.com/sharma614/Tender_AI/actions/workflows/ci.yml/badge.svg)](https://github.com/sharma614/Tender_AI/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com)
 [![Vite](https://img.shields.io/badge/Vite-5.4%2B-646CFF.svg)](https://vitejs.dev)
@@ -12,21 +12,21 @@
 [![Upstash](https://img.shields.io/badge/Upstash-Redis%20Broker-00E599.svg)](https://upstash.com)
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-**TenderAI** is a production-grade, enterprise-scale automated tender evaluation platform powered by a **Multi-Agent AI System** orchestrated by LangGraph, a **Vite SPA Web Dashboard** (hosted on Firebase), **Retrieval-Augmented Generation (RAG)** with pgvector cosine similarity search, a **Calibrated Bid/No-Bid Decision Engine**, a **Deterministic Compliance Engine**, and **Celery/Upstash Redis Asynchronous Queues** deployed seamlessly on **Render** (with Supabase PostgreSQL & Storage), alongside alternative **AWS Cloud Microservices** provisioned via **Terraform Infrastructure-as-Code**.
-
-Evaluating a 300-page RFP manually can take 20–40 hours. TenderAI reduces this to minutes by decomposing the problem into specialized agents — each grounded in targeted retrieved context rather than the full document — achieving 100% extraction accuracy (vs. 80% monolithic baseline) with ~45% faster execution latency.
-
+ 
+**TenderAI** reads a tender document (an RFP), pulls out the facts that matter, flags legal and financial risks, checks eligibility against a company profile, and ends with a bid / no-bid recommendation. The work is split across several LLM agents coordinated by **LangGraph**. Each agent sees only the chunks retrieved for its own job, using **RAG over pgvector**. Compliance checks are **plain Python, not LLM calls**. Uploads go through a Celery queue (**Upstash Redis**), so the API answers immediately while the analysis runs in the background. The web dashboard is a Vite SPA on Firebase, the backend runs on Render with Supabase for Postgres and storage, and there's an alternative AWS setup defined in Terraform.
+ 
+Reading a 300-page RFP by hand can take 20 to 40 hours. TenderAI does it in minutes. On the synthetic tender corpus in this repo, the multi-agent pipeline hit **100% field accuracy** against **80%** for a single-prompt baseline, with **about 45% lower latency**.
+ 
 ---
-
+ 
 ## 📑 Table of Contents
-
+ 
 - [System Architecture](#-system-architecture)
 - [Key Engineering Features](#-key-engineering--architectural-features)
 - [Agent Roster](#-agent-roster)
 - [Tech Stack](#-tech-stack)
 - [Project Structure](#-project-structure)
-- [Quick Start (Local Development — Zero Docker Required)](#-quick-start-local-development--zero-docker-required)
+- [Quick Start (Local Development, Zero Docker Required)](#-quick-start-local-development-zero-docker-required)
 - [Environment Variables](#-environment-variables)
 - [API Reference](#-api-reference)
 - [Evaluation Harness & Empirical Benchmarks](#-evaluation-harness)
@@ -35,276 +35,263 @@ Evaluating a 300-page RFP manually can take 20–40 hours. TenderAI reduces this
 - [AWS Cloud Infrastructure (Terraform Alternative)](#-aws-cloud-infrastructure-terraform-alternative)
 - [Testing](#-testing)
 - [License](#-license)
-
 ---
-
+ 
 ## 🏛️ System Architecture
-
+ 
 ```mermaid
 graph TD
-    User([User / Web Dashboard — Firebase Hosting]) -->|1. Upload RFP Document| API[FastAPI Web Engine — Render]
+    User([User / Web Dashboard - Firebase Hosting]) -->|1. Upload RFP Document| API[FastAPI Web Engine - Render]
     API -->|2. Stream & Save PDF| SupaStorage[Supabase Storage Bucket: tenders]
     API -->|3. Enqueue Background Job| Redis[Upstash Redis Broker / rediss://]
-    Redis -->|4. Consume Task| Worker[Celery Worker Cluster — Render]
-
+    Redis -->|4. Consume Task| Worker[Celery Worker Cluster - Render]
+ 
     subgraph Multi-Agent Processing Engine
         Worker -->|5. Chunk & Embed| PGVector[(Supabase PostgreSQL + pgvector)]
         Worker -->|6. Orchestrate| LangGraph[LangGraph Central Orchestrator]
-
-        LangGraph -->|Superstep 1 — concurrent| Agent1[Metadata Extraction Agent]
-        LangGraph -->|Superstep 1 — concurrent| Agent2[Executive Summarizer Agent]
-        LangGraph -->|Superstep 1 — concurrent| Agent3[Legal/Financial Risk Agent]
-
+ 
+        LangGraph -->|Superstep 1 - concurrent| Agent1[Metadata Extraction Agent]
+        LangGraph -->|Superstep 1 - concurrent| Agent2[Executive Summarizer Agent]
+        LangGraph -->|Superstep 1 - concurrent| Agent3[Legal/Financial Risk Agent]
+ 
         Agent1 -->|Superstep 2| Agent4[Compliance Verification Agent]
         Agent1 & Agent2 & Agent3 & Agent4 -.->|"Targeted pgvector retrieval (RAG)"| PGVector
-
+ 
         Agent4 --> Engine[Bid/No-Bid Decision Engine]
         EvalHarness[Eval Harness] -->|"Ablation Grid & Retrieval Eval"| PGVector
     end
-
+ 
     Engine -->|7. Persist Structured Results| MainDB[(Supabase PostgreSQL Main DB)]
     MainDB -->|8. Fetch Results| API
     API -->|9. Serve Responses & Live Metrics| User
 ```
-
-**9-Step Data Flow:**
-
-| Step | Component | Action |
+ 
+The nine steps:
+ 
+| Step | Component | What happens |
 |:---:|:---|:---|
-| 1 | User → FastAPI | Upload RFP PDF via `POST /upload` — returns `202 Accepted` + `job_id` instantly |
-| 2 | FastAPI → Supabase Storage | PDF binary saved to Supabase Storage bucket (`tenders`), saving file path to `Tender.storage_path` |
-| 3 | FastAPI → Upstash Redis | API dispatches `process_tender_job` Celery task via TLS-encrypted Redis broker (`rediss://`) |
-| 4 | Redis → Celery Worker | Dedicated background worker on Render consumes job with exponential backoff fault tolerance |
-| 5 | Celery → pgvector | PDF extracted via PyMuPDF/OCR, chunked (1000/200), embedded (384d), and stored in Supabase pgvector |
-| 6 | Celery → LangGraph | Multi-agent graph executes: Extraction, Summary, Risk (concurrent) → Compliance → Bid Decision |
-| 7 | Engine → PostgreSQL | Structured facts, risk items, compliance checks, and bid scores committed to Supabase DB |
-| 8 | PostgreSQL → FastAPI | Client polls `GET /jobs/{job_id}` to retrieve comprehensive evaluation state |
-| 9 | FastAPI → User | Dashboard visualizes executive summary, compliance breakdown, risk ledger, and bid verdict |
-
+| 1 | User to FastAPI | The RFP PDF is uploaded with `POST /upload`. The API returns `202 Accepted` and a `job_id` right away. |
+| 2 | FastAPI to Supabase Storage | The PDF goes into the `tenders` bucket, and its path is saved in `Tender.storage_path`. |
+| 3 | FastAPI to Upstash Redis | The API dispatches a `process_tender_job` Celery task over a TLS Redis broker (`rediss://`). |
+| 4 | Redis to Celery worker | A background worker on Render picks up the job. Failures are retried with exponential backoff. |
+| 5 | Celery to pgvector | The PDF is extracted with PyMuPDF (OCR as fallback), chunked (1000/200), embedded (384 dimensions) and stored in Supabase pgvector. |
+| 6 | Celery to LangGraph | The agent graph runs: Extraction, Summary and Risk concurrently, then Compliance, then Bid Decision. |
+| 7 | Engine to PostgreSQL | Extracted facts, risk items, compliance checks and bid scores are committed to the database. |
+| 8 | PostgreSQL to FastAPI | The client polls `GET /jobs/{job_id}` for the full evaluation state. |
+| 9 | FastAPI to User | The dashboard shows the executive summary, compliance breakdown, risk ledger and bid verdict. |
+ 
 ---
-
+ 
 ## 🔑 Key Engineering & Architectural Features
-
-### 1. Multi-Agent System vs. Monolithic LLM Call
-
-The system was evaluated using `eval_harness.py` against both the monolithic baseline (`MonolithicAgent`) and multi-agent RAG pipeline (`AgentOrchestrator`). The empirical metrics below reflect real recorded runs from `eval_results/` artifacts:
-
-| Metric / Dimension | `mono-full` (Monolithic Baseline) | `multi-rag` / `multi-rag-cite` (TenderAI Multi-Agent) |
+ 
+### 1. Multi-agent pipeline vs. one big LLM call
+ 
+`eval_harness.py` compares a monolithic baseline (`MonolithicAgent`) with the multi-agent RAG pipeline (`AgentOrchestrator`). The numbers below come from recorded runs in `eval_results/`.
+ 
+| Metric | `mono-full` (monolithic baseline) | `multi-rag` / `multi-rag-cite` (TenderAI) |
 |:---|:---:|:---:|
-| **Context per agent call** | Full document text (~45k chars) | ~12k chars targeted chunks (~12 retrieved chunks) |
-| **Field Accuracy (Measured)** | **80.0%** (misses nested clauses like solvency requirements) | **100.0%** (1.0 macro accuracy across all 5 tender fields) |
-| **Token Consumption** | 12,426 tokens / doc | 11,635 tokens / doc (includes reasoning tokens) |
-| **End-to-End Latency** | 17,866 ms (~17.9s) | 9,745 ms (~9.7s — **~45% lower latency**) |
-| **Hallucination Protection** | Unanchored generation ("Lost in the Middle" risk) | Grounded citations verified via deterministic substring containment |
-| **Failure Isolation** | Monolithic (single point of failure) | Per-agent fail-soft (Extraction, Summary, Risk, Compliance) |
-
-> ℹ️ **Provenance:** Measured on synthetic tender corpus via `eval_harness.py`. Monolithic metrics recorded in `eval_results/ablation-20261002T070644Z.json`; multi-agent extraction metrics recorded in `eval_results/extraction-20261002T070913Z.json`. Zero synthetic or placeholder numbers.
-
-**Problem:** Monolithic LLM calls on dense tenders suffer from context window degradation (*"Lost in the Middle"*), ungrounded value fabrication, and slow generation latencies.
-
-**Solution:** TenderAI breaks evaluation into specialized, domain-tailored agents. Each agent receives only the top-K retrieved chunks most relevant to its domain (max 12 chunks, 3 per targeted query × up to 5 queries), producing higher signal-to-noise context (~12k chars vs. ~45k chars full document text).
-
-**Agent Isolation Design:** Agents never hold a database Session. Because Extraction, Summarization, and Risk run as concurrent LangGraph nodes, a shared SQLAlchemy Session across threads would corrupt state. Each agent returns a `ToolCallRecord`; the orchestrator's `_persist` node writes them single-threaded after the graph completes.
-
-### 2. LangGraph Orchestration (Pregel-style Concurrent Execution)
-
+| **Context per agent call** | Full document text (~45k chars) | ~12k chars of retrieved chunks (about 12 chunks) |
+| **Field accuracy** | **80.0%** (misses nested clauses such as solvency requirements) | **100.0%** (macro accuracy across all 5 tender fields) |
+| **Tokens per document** | 12,426 | 11,635 (includes reasoning tokens) |
+| **End-to-end latency** | 17,866 ms (~17.9 s) | 9,745 ms (~9.7 s), **about 45% lower** |
+| **Hallucination protection** | None. Output is unanchored, so "lost in the middle" errors are possible | Citations checked by substring containment |
+| **Failure isolation** | A single failure breaks everything | Each agent fails on its own (Extraction, Summary, Risk, Compliance) |
+ 
+**Provenance:** measured on the synthetic tender corpus with `eval_harness.py`. Monolithic numbers are in `eval_results/ablation-20261002T070644Z.json`, and multi-agent extraction numbers are in `eval_results/extraction-20261002T070913Z.json`. Nothing here is estimated or filled in by hand. Because the corpus is synthetic, treat these as a comparison between the two approaches rather than a forecast for real-world tenders.
+ 
+**Problem:** the issue with a single call over a dense tender is that models lose details buried in the middle of long documents, invent values, and take a long time to respond. **Solution:** TenderAI splits the job across agents. Each one gets the top-K chunks for its domain (at most 12 chunks: 3 per query, up to 5 queries), so the context is about 12k characters instead of 45k.
+ 
+**Agent isolation design:** agents never hold a database session. Extraction, Summarization and Risk run as concurrent LangGraph nodes, and a SQLAlchemy Session shared across threads would corrupt state. Each agent returns a `ToolCallRecord` instead, and the orchestrator's `_persist` node writes them from a single thread once the graph finishes.
+ 
+### 2. LangGraph orchestration (Pregel-style concurrency)
+ 
 ```
 START ──┬──► [Extraction]  ──► (conditional) ──► [Compliance] ──► [Bid Decision] ──► END
         ├──► [Summarizer]  ──────────────────────────────────────────────────────► END
         └──► [Risk]        ──────────────────────────────────────────────────────► END
              ╰──── Superstep 1 (concurrent) ────╯
 ```
-
-- **Superstep 1:** `extraction`, `summarizer`, and `risk` fan out from `START` and run **concurrently** via LangGraph's Pregel loop.
-- **Superstep 2:** `compliance` runs after `extraction` (depends on `extracted_facts`).
-- **Conditional routing:** If `extracted_facts is None`, skip compliance and route directly to `bid_decision`.
-- The `tool_calls` field uses an `operator.add` reducer to safely merge concurrent agent instrumentation records.
-
-### 3. Retrieval-Augmented Generation (RAG) & Citation Verification
-
-**Chunking Strategies:**
-
-| Strategy | Method | Chunk Size | Overlap |
+ 
+- **Superstep 1:** `extraction`, `summarizer` and `risk` fan out from `START` and run concurrently in LangGraph's Pregel loop.
+- **Superstep 2:** `compliance` runs after `extraction`, since it needs `extracted_facts`.
+- **Conditional routing:** if `extracted_facts is None`, compliance is skipped and the graph goes straight to `bid_decision`.
+- The `tool_calls` field uses an `operator.add` reducer so records from concurrent agents merge safely.
+### 3. Retrieval and citation verification
+ 
+Chunking strategies:
+ 
+| Strategy | Method | Chunk size | Overlap |
 |:---|:---|:---:|:---:|
 | **Character** (production default) | Sliding window | 1,000 chars | 200 chars |
-| **Structure-Aware** | Section/clause heading splits | Variable (up to 1,500 chars) | 150 chars (sub-chunk) |
-
-Structure-aware chunking splits on `SECTION X`, `CLAUSE Y.Z`, `ANNEXURE A`, `PART III` headings to preserve clause semantics. A preamble section is always emitted (often contains the tender title and key dates).
-
-**Embedding:** `sentence-transformers/all-MiniLM-L6-v2` → 384-dimensional dense vectors stored as `VECTOR(384)` in PostgreSQL via pgvector with an HNSW index.
-
-**Targeted Query Sets (per agent):**
-
-| Agent | Sample Queries |
+| **Structure-aware** | Splits on section and clause headings | Variable, up to 1,500 chars | 150 chars (sub-chunks) |
+ 
+Structure-aware chunking splits on headings like `SECTION X`, `CLAUSE Y.Z`, `ANNEXURE A` and `PART III` so clauses stay intact. It always emits a preamble section, which often holds the tender title and key dates.
+ 
+Embeddings come from `sentence-transformers/all-MiniLM-L6-v2` (384-dimensional), stored as `VECTOR(384)` in PostgreSQL with an HNSW index.
+ 
+Each agent has its own set of retrieval queries:
+ 
+| Agent | Sample queries |
 |:---|:---|
-| Extraction | `"tender submission deadline closing date"`, `"earnest money deposit EMD bank guarantee"` |
-| Summarizer | `"tender title overall scope of work"`, `"contract duration completion timeline"` |
-| Risk | `"liquidated damages delay penalty clause"`, `"termination for convenience default clause"` |
-
-**`rag-cite` mode:** Agents populate `CitationRef` fields (`chunk_id`, `page_number`) for each extracted value. `chunk_id = -1` is the sentinel meaning "I cannot attribute this value to any retrieved chunk." Citations are then verified by deterministic substring containment — no LLM judge required.
-
-| Citation Status | Meaning |
+| **Extraction** | `"tender submission deadline closing date"`, `"earnest money deposit EMD bank guarantee"` |
+| **Summarizer** | `"tender title overall scope of work"`, `"contract duration completion timeline"` |
+| **Risk** | `"liquidated damages delay penalty clause"`, `"termination for convenience default clause"` |
+ 
+**`rag-cite` mode:** in this mode, agents fill in `CitationRef` fields (`chunk_id`, `page_number`) for every extracted value. A `chunk_id` of `-1` means the agent couldn't attribute the value to any retrieved chunk. Citations are then checked by plain substring containment, with no LLM judge.
+ 
+| Status | Meaning |
 |:---|:---|
-| `grounded` | The extracted value string appears as a substring of the cited chunk (verifies **presence**, not semantic support) |
-| `ungrounded` | `chunk_id == -1` — LLM admitted no attribution |
-| `hallucinated` | `chunk_id != -1` but value string **not found** in cited chunk |
-| `missing_chunk` | Cited chunk ID not found in the database |
-
-> **Limitation of substring grounding:** A `grounded` verdict means the value string is present somewhere in the chunk — it does not confirm that the chunk *contextually supports* the extracted claim. A figure that appears in the chunk as a counter-example, a historical value, or in a different field would still pass the containment check. This is a necessary but not sufficient condition for full semantic grounding; a semantic verification step (e.g. an LLM judge or NLI model) would be required for stronger guarantees.
-
-
-### 4. Deterministic Compliance Engine
-
-> "Asking an LLM whether `$5,000,000` clears `Rs. 5 Crore` is unreliable — LLMs struggle with numeric comparison and magnitude scaling."
-
-Compliance checks are performed **deterministically in Python**, not by the LLM:
-
-1. **Minimum Annual Turnover** — Monetary parser handles Crores, Lakhs, Millions, USD, INR (83 INR/USD normalization) → numeric comparison
-2. **Solvency Certificate** — Boolean presence check
-3. **Minimum Experience** — Regex-extracted years from eligibility criteria → numeric comparison
-4. **EMD Acknowledgment** — Presence-based (always compliant if acknowledged)
-
-LLM extracts string requirements → Python parses to normalized floats → Python compares values.
-
-### 5. Calibrated Bid/No-Bid Decision Engine
-
-**Composite Score Formula:**
-
+| `grounded` | The extracted value appears as a substring of the cited chunk. This confirms the value is present, not that the chunk supports it. |
+| `ungrounded` | `chunk_id == -1`. The model admitted it had no source. |
+| `hallucinated` | `chunk_id != -1`, but the value isn't in the cited chunk. |
+| `missing_chunk` | The cited chunk ID doesn't exist in the database. |
+ 
+A `grounded` result only means the string shows up somewhere in the chunk. A figure that appears as a counter-example, a historical value, or under a different field would still pass. So substring grounding is necessary but not sufficient. Stronger guarantees would need a semantic check, such as an LLM judge or an NLI model.
+ 
+### 4. Deterministic compliance engine
+ 
+LLMs are unreliable at questions like whether `$5,000,000` clears `Rs. 5 Crore`. They get magnitudes and unit conversions wrong. So compliance is checked in Python:
+ 
+1. **Minimum Annual Turnover.** A monetary parser handles Crores, Lakhs, Millions, USD and INR (normalized at 83 INR/USD), then compares the numbers.
+2. **Solvency Certificate.** A boolean presence check.
+3. **Minimum Experience.** Years are pulled from the eligibility text with a regex and compared numerically.
+4. **EMD Acknowledgment.** Presence only; compliant whenever it's acknowledged.
+The LLM extracts the requirement strings, Python parses them into normalized floats, and Python does the comparison.
+ 
+### 5. Bid / no-bid decision engine
+ 
 ```
 CompositeScore = (ComplianceScore × 0.50) + (TechnicalFit × 0.30) + (max(0, 100 − RiskPenalty) × 0.20)
 ```
-
-| Sub-Score | Calculation |
+ 
+| Sub-score | Calculation |
 |:---|:---|
-| `ComplianceScore` | `(compliant + 0.5 × partial) / total × 100` |
-| `TechnicalFit` | `50 + (matched_criteria / total_criteria × 50)` — range 50–100 |
-| `RiskPenalty` | `min(100, high×25 + medium×10 + low×3)` |
-
-**Recommendation Thresholds** (evaluated top-to-bottom, first match wins):
-
+| **`ComplianceScore`** | `(compliant + 0.5 × partial) / total × 100` |
+| **`TechnicalFit`** | `50 + (matched_criteria / total_criteria × 50)`, so it ranges from 50 to 100 |
+| **`RiskPenalty`** | `min(100, high×25 + medium×10 + low×3)` |
+ 
+Rules are evaluated top to bottom, and the first match wins:
+ 
 | Priority | Recommendation | Condition |
 |:---:|:---|:---|
-| 1 | ❌ `NO_BID` | NOT overall compliant (mandatory compliance failure) |
+| 1 | ❌ `NO_BID` | Not overall compliant (a mandatory compliance failure) |
 | 2 | ✅ `GO_BID` | Compliant AND CompositeScore ≥ 70 **AND** RiskPenalty **< 40** |
-| 3 | ⚠️ `CONDITIONAL_BID` | Compliant AND CompositeScore ≥ 45 (includes the case where score ≥ 70 but RiskPenalty ≥ 40) |
+| 3 | ⚠️ `CONDITIONAL_BID` | Compliant and CompositeScore ≥ 45 (this includes score ≥ 70 with RiskPenalty ≥ 40) |
 | 4 | ❌ `NO_BID` | CompositeScore < 45 |
-
-> **Note:** A composite score ≥ 70 with a risk penalty ≥ 40 does **not** produce `GO_BID`. The `GO_BID` branch requires both conditions; if RiskPenalty ≥ 40 the rule falls through to priority 3 and returns `CONDITIONAL_BID`, reflecting that strong financial alignment cannot override a severe risk burden.
-
-**Calibrated Confidence (0.0–1.0):**
-
+ 
+**Note:** a score of 70 or more with a risk penalty of 40 or more does **not** give `GO_BID`. It falls through to `CONDITIONAL_BID`, because a strong financial fit shouldn't cancel out a heavy risk load.
+ 
+Confidence (0.0 to 1.0):
+ 
 ```
 Confidence = 0.30 × ExtractionCompleteness
            + 0.30 × GroundingRatio
            + 0.20 × ComplianceClarity
            + 0.20 × RiskDepth
 ```
-
-### 6. Monolithic Baseline & Scientific Ablation
-
-Includes `MonolithicAgent` as a single-prompt control arm processing the full document in one call. The ablation harness runs all four configs on the same corpus, measuring:
-
+ 
+### 6. Monolithic baseline and ablation
+ 
+`MonolithicAgent` is a single-prompt control that processes the whole document in one call. The ablation harness runs four configurations on the same corpus:
+ 
 | Config | Description |
 |:---|:---|
-| `mono-full` | Baseline: single LLM call, full document text |
+| `mono-full` | Baseline: one LLM call, full document text |
 | `multi-full` | Multi-agent, full-context prompts (no retrieval) |
 | `multi-rag` | Multi-agent, retrieval-grounded prompts |
-| `multi-rag-cite` | Full system: retrieval + citation verification |
-
-Metrics: macro field accuracy, total tokens (including billable reasoning tokens), estimated USD cost, latency, grounding precision, hallucination rate.
-
-> ⚠️ Token counts use `total_token_count` from the Gemini SDK (includes billable "thinking" tokens). `prompt + completion` alone undercounts badly on gemini-3.x flash models.
-
-### 7. Asynchronous Job Processing (Celery + SQS/Redis)
-
-- `POST /upload` returns `202 Accepted` with `job_id` in <100ms — never blocks the client.
-- **Exponential Backoff Retry:** Attempt 1 → 30s, Attempt 2 → 120s, Attempt 3 → 480s.
-- **Dead-Letter State Machine:** After 3 retries, job marked `dead_letter` with error stored in DB.
-
+| `multi-rag-cite` | Full system: retrieval plus citation verification |
+ 
+It measures macro field accuracy, total tokens (including billable reasoning tokens), estimated USD cost, latency, grounding precision and hallucination rate.
+ 
+Token counts use `total_token_count` from the Gemini SDK, which includes billable "thinking" tokens. Adding up `prompt + completion` alone undercounts badly on gemini-3.x flash models.
+ 
+### 7. Asynchronous job processing (Celery with Redis or SQS)
+ 
+- **`POST /upload`** returns `202 Accepted` with a `job_id` in under 100 ms and never blocks the client.
+- **Exponential backoff retry:** 30 s after attempt 1, 120 s after attempt 2, 480 s after attempt 3.
+- **Dead-letter state machine:** after 3 retries the job is marked `dead_letter` and the error is stored in the database.
 ```
-Job States: pending → processing → [retrying → ...] → completed | dead_letter
+Job states: pending → processing → [retrying → ...] → completed | dead_letter
 ```
-
+ 
 Two task entry points share the same `run_pipeline` function:
-- `process_tender_job` — for direct API uploads
-- `process_tender_job_from_s3` — for Lambda → SQS path on AWS
-
-### 8. Corrigendum / Amendment Support
-
-TenderAI can process amendment documents that override parent tender fields:
-
+- `process_tender_job` for direct API uploads
+- `process_tender_job_from_s3` for the Lambda to SQS path on AWS
+### 8. Corrigendum / amendment support
+ 
+TenderAI can process amendment documents that override fields on the parent tender:
+ 
 ```bash
-# Applies corrigendum overrides to parent tender (deadline, EMD, etc.)
+# Applies corrigendum overrides to the parent tender (deadline, EMD, etc.)
 orchestrator.apply_corrigendum(parent_tender_id, corrigendum_text, db)
 ```
-
-Fields overridden: `submission_deadline`, `minimum_turnover`, `earnest_money_deposit_emd`. Uses full-dict reassignment (not in-place mutation) to satisfy SQLAlchemy's JSON mutation tracking.
-
+ 
+The overridable fields are `submission_deadline`, `minimum_turnover` and `earnest_money_deposit_emd`. The code reassigns the whole dict instead of mutating it in place, because SQLAlchemy doesn't track in-place changes to JSON columns.
+ 
 ---
-
+ 
 ## 🤖 Agent Roster
-
-| Agent | File | Responsibility | RAG Queries |
+ 
+| Agent | File | Responsibility | RAG queries |
 |:---|:---|:---|:---:|
-| `ExtractionAgent` | `app/agents/extraction.py` | Title, deadline, financial requirements, eligibility criteria | 5 queries |
-| `SummarizerAgent` | `app/agents/summarizer_agent.py` | Executive summary, scope of work, key dates | 5 queries |
-| `RiskAgent` | `app/agents/risk_agent.py` | Legal/financial risks with severity (Low/Medium/High) and mitigations | 6 queries |
-| `ComplianceAgent` | `app/agents/compliance_agent.py` | Maps extracted facts to company profile via deterministic engine | — |
-| `MonolithicAgent` | `app/agents/monolithic.py` | Control arm: all outputs in a single LLM call | — |
-| `AgentOrchestrator` | `app/agents/orchestrator.py` | Builds and runs the LangGraph `StateGraph` | — |
-
-All agents extend `BaseAgent` (`app/agents/base.py`) which:
-- Configures the Gemini client once per process (`_configure_once`)
-- Enforces `response_mime_type="application/json"` for structured output
-- Times every LLM call (`latency_ms`) and reads token counts
-- Produces a `ToolCallRecord` on both success and failure paths
-- Clamps prompts at `MAX_PROMPT_CHARS = 1,500,000`
-
+| **`ExtractionAgent`** | `app/agents/extraction.py` | Title, deadline, financial requirements, eligibility criteria | 5 |
+| **`SummarizerAgent`** | `app/agents/summarizer_agent.py` | Executive summary, scope of work, key dates | 5 |
+| **`RiskAgent`** | `app/agents/risk_agent.py` | Legal and financial risks with severity (Low/Medium/High) and mitigations | 6 |
+| **`ComplianceAgent`** | `app/agents/compliance_agent.py` | Maps extracted facts to the company profile through the deterministic engine | none |
+| **`MonolithicAgent`** | `app/agents/monolithic.py` | Control arm: every output in one LLM call | none |
+| **`AgentOrchestrator`** | `app/agents/orchestrator.py` | Builds and runs the LangGraph `StateGraph` | none |
+ 
+All agents extend `BaseAgent` (`app/agents/base.py`), which:
+- configures the Gemini client once per process (`_configure_once`)
+- enforces `response_mime_type="application/json"` for structured output
+- times every LLM call (`latency_ms`) and reads token counts
+- produces a `ToolCallRecord` on both success and failure
+- clamps prompts at `MAX_PROMPT_CHARS = 1,500,000`
 ---
-
+ 
 ## 🛠️ Tech Stack
-
-| Layer | Technology | Version / Provider |
+ 
+| Layer | Technology | Version / provider |
 |:---|:---|:---|
 | Language | Python | 3.11 / 3.12 |
-| API Framework | FastAPI + Uvicorn | ≥ 0.100 |
-| Frontend Engine | Vite (SPA, Fast Dev Server & HMR) | ≥ 5.4 |
-| UI & Styling | Vanilla CSS Design System + Modern DOM | Responsive Glassmorphism |
-| Data Validation | Pydantic v2 | ≥ 2.0 |
+| API framework | FastAPI + Uvicorn | ≥ 0.100 |
+| Frontend | Vite SPA | ≥ 5.4 |
+| UI and styling | Vanilla CSS design system | Responsive, glassmorphism |
+| Data validation | Pydantic v2 | ≥ 2.0 |
 | ORM | SQLAlchemy | ≥ 2.0 |
-| DB Migrations | Alembic | ≥ 1.13 |
-| Database Driver | psycopg v3 (`psycopg[binary]`) | ≥ 3.1.0 |
-| LLM Provider | Google Gemini (`gemini-3.6-flash`) | ≥ 0.7.0 |
-| Agent Orchestration | LangGraph | ≥ 0.2 |
-| LLM Toolkit | LangChain | ≥ 0.2 |
-| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`) | ≥ 3.0, < 4.0 (384-dim dense) |
-| Vector Search & Relational DB | Supabase PostgreSQL + pgvector (HNSW) / Local SQLite | Production Managed |
-| Object Storage | Supabase Storage (`tenders` bucket) | Managed Cloud S3-compatible |
-| Task Queue | Celery | ≥ 5.3 |
-| Message Broker | Upstash Redis (TLS `rediss://`) / Local Redis | Serverless Cloud Redis |
-| Application Hosting | Render (Web Service `tenderai-api` + Background Worker `tenderai-worker`) | Container Blueprint |
-| Frontend Hosting | Firebase Hosting | Production CDN |
-| PDF Processing | PyMuPDF (`fitz`) | ≥ 1.24 |
-| OCR Fallback | Tesseract + Pillow | — |
-| Alternative Cloud IaC | AWS Terraform (ECS Fargate, S3, SQS, RDS, VPC) | `infra/terraform/` |
-| CI/CD | GitHub Actions | Automated lint, unit & integration test suite |
-| Testing | pytest + pytest-asyncio | 100% passing test suite |
-
+| DB migrations | Alembic | ≥ 1.13 |
+| Database driver | psycopg v3 (`psycopg[binary]`) | ≥ 3.1.0 |
+| LLM | Google Gemini (`gemini-3.6-flash`) | ≥ 0.7.0 |
+| Agent orchestration | LangGraph | ≥ 0.2 |
+| LLM toolkit | LangChain | ≥ 0.2 |
+| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`) | ≥ 3.0, < 4.0 (384-dim) |
+| Vector search and relational DB | Supabase PostgreSQL + pgvector (HNSW), or local SQLite | Managed |
+| Object storage | Supabase Storage (`tenders` bucket) | Managed, S3-compatible |
+| Task queue | Celery | ≥ 5.3 |
+| Message broker | Upstash Redis (TLS `rediss://`) or local Redis | Serverless |
+| Application hosting | Render (web service `tenderai-api`, background worker `tenderai-worker`) | Container blueprint |
+| Frontend hosting | Firebase Hosting | CDN |
+| PDF processing | PyMuPDF (`fitz`) | ≥ 1.24 |
+| OCR fallback | Tesseract + Pillow | |
+| Alternative IaC | AWS Terraform (ECS Fargate, S3, SQS, RDS, VPC) | `infra/terraform/` |
+| CI/CD | GitHub Actions | Lint, unit and integration tests |
+| Testing | pytest + pytest-asyncio | |
+ 
 ---
-
+ 
 ## 📁 Project Structure
-
+ 
 ```
 TenderAI/
 ├── app/
 │   ├── agents/
 │   │   ├── base.py               # BaseAgent: Gemini client, instrumentation, ToolCallRecord
 │   │   ├── orchestrator.py       # LangGraph StateGraph + RAG retrieval + persistence
-│   │   ├── extraction.py         # ExtractionAgent — title, deadline, financial, eligibility
-│   │   ├── summarizer_agent.py   # SummarizerAgent — executive summary, scope, dates
-│   │   ├── risk_agent.py         # RiskAgent — legal/financial risks, severity, mitigations
-│   │   ├── compliance_agent.py   # ComplianceAgent — maps facts to company profile
-│   │   └── monolithic.py         # MonolithicAgent — single-call baseline
+│   │   ├── extraction.py         # ExtractionAgent: title, deadline, financial, eligibility
+│   │   ├── summarizer_agent.py   # SummarizerAgent: executive summary, scope, dates
+│   │   ├── risk_agent.py         # RiskAgent: legal/financial risks, severity, mitigations
+│   │   ├── compliance_agent.py   # ComplianceAgent: maps facts to company profile
+│   │   └── monolithic.py         # MonolithicAgent: single-call baseline
 │   ├── services/
 │   │   ├── pdf_processor.py      # PyMuPDF extraction, OCR fallback, chunking strategies
 │   │   ├── embedder.py           # sentence-transformers TextEmbedder (384d)
@@ -319,135 +306,133 @@ TenderAI/
 │   ├── schemas.py                # Pydantic v2 schemas (AgentState, BidDecision, etc.)
 │   ├── database.py               # DB engine, SessionLocal, pgvector/SQLite fallback
 │   └── metrics.py                # /admin/metrics observability endpoint
-├── frontend/                     # Modern Vite Web Dashboard (Zero Docker Required)
+├── frontend/                     # Vite web dashboard (no Docker needed)
 │   ├── src/
-│   │   ├── main.js               # Reactive SPA client: upload form, health poll, tender list
-│   │   └── style.css             # Sleek modern styling & typography
+│   │   ├── main.js               # SPA client: upload form, health poll, tender list
+│   │   └── style.css             # Styling and typography
 │   ├── index.html                # Vite SPA entrypoint
 │   ├── vite.config.js            # Vite server & proxy configuration
 │   └── package.json              # Vite scripts (dev, build, preview)
 ├── public/                       # Static production web assets for Firebase Hosting
 ├── eval_harness.py               # Evaluation harness (smoke / retrieval / extraction / ablation)
-├── eval_results/                 # Recorded empirical benchmark JSON runs (reproducible tables)
+├── eval_results/                 # Recorded benchmark JSON runs
 ├── corpus/                       # Synthetic tender PDFs + annotation JSON files
-├── render.yaml                   # Render Blueprint: tenderai-api web service + tenderai-worker background service
-├── firebase.json                 # Firebase Hosting configuration & SPA routing rewrites
-├── .env.example                  # Environment configuration template for local & production
-├── Dockerfile.api                # Container definition for FastAPI API
-├── Dockerfile.worker             # Container definition for Celery Worker
-├── infra/terraform/              # AWS Terraform IaC alternative (ECS, S3, SQS, RDS, VPC)
+├── render.yaml                   # Render Blueprint: tenderai-api web service + tenderai-worker
+├── firebase.json                 # Firebase Hosting config & SPA routing rewrites
+├── .env.example                  # Environment template for local & production
+├── Dockerfile.api                # Container definition for the FastAPI API
+├── Dockerfile.worker             # Container definition for the Celery worker
+├── infra/terraform/              # AWS Terraform alternative (ECS, S3, SQS, RDS, VPC)
 ├── alembic/                      # Alembic migrations (including 0003_rename_s3_key_to_storage_path.py)
 ├── tests/                        # pytest unit & integration tests
 ├── requirements.txt              # Production Python dependencies (includes supabase, psycopg[binary])
 └── README.md
 ```
-
+ 
 ---
-
-## 🚀 Quick Start (Local Development — Zero Docker Required)
-
-TenderAI runs entirely on native Python and Vite locally — **no Docker containers are required**.
-
-### 1. Clone & Set Up Backend Environment
-
+ 
+## 🚀 Quick Start (Local Development, Zero Docker Required)
+ 
+Everything runs locally on plain Python and Vite. No containers needed.
+ 
+### 1. Clone and set up the backend
+ 
 ```bash
 git clone https://github.com/sharma614/Tender_AI.git
 cd Tender_AI
-
-# Create virtual environment
+ 
+# Create a virtual environment
 python -m venv venv
 source venv/bin/activate       # Linux/macOS
 # venv\Scripts\activate        # Windows
-
-# Install Python dependencies
+ 
+# Install dependencies
 pip install -r requirements.txt
 ```
-
-### 2. Configure Environment Variables
-
+ 
+### 2. Configure environment variables
+ 
 ```bash
 cp .env.example .env   # or create .env manually
 # Set your GEMINI_API_KEY
-# DATABASE_URL can be omitted for local dev (automatically falls back to local SQLite)
+# DATABASE_URL can be left out for local dev (falls back to local SQLite)
 ```
-
-### 3. Run Database Migrations
-
+ 
+### 3. Run migrations
+ 
 ```bash
 alembic upgrade head
 ```
-
-### 4. Start the FastAPI Server
-
+ 
+### 4. Start the API
+ 
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
-
-The API Swagger docs are available at `http://localhost:8000/docs`.
-
-### 5. Start the Frontend (Vite)
-
-In a separate terminal, launch the modern web frontend using Vite:
-
+ 
+Swagger docs are at `http://localhost:8000/docs`.
+ 
+### 5. Start the frontend
+ 
+In a second terminal:
+ 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-The frontend development server will launch instantly with Hot Module Replacement (HMR) at:
-👉 **`http://localhost:5173`**
-
-### 6. (Optional) Run Asynchronous Celery Worker
-
-For background async queue testing, run the Celery worker natively:
-
+ 
+The dev server starts with hot module replacement at `http://localhost:5173`.
+ 
+### 6. (Optional) Run the Celery worker
+ 
+To test the background queue, run the worker natively:
+ 
 ```bash
-# If local Redis is running natively on port 6379:
+# Requires Redis running locally on port 6379
 celery -A app.worker worker --loglevel=info
 ```
-*(Note: Core API upload, retrieval evaluation, smoke testing, and field extraction operate out-of-the-box on SQLite without needing Redis or Docker).*
-
+ 
+Uploads, retrieval evaluation, smoke tests and field extraction all work on SQLite without Redis or Docker.
+ 
 ---
-
+ 
 ## ⚙️ Environment Variables
-
-Copy `.env.example` to `.env` to configure your environment:
-
+ 
+Copy `.env.example` to `.env`:
+ 
 | Variable | Tier | Description |
 |:---|:---:|:---|
 | `GEMINI_API_KEY` | ✅ Required | Google Gemini API key for agent reasoning and extraction |
 | `GEMINI_MODEL_NAME` | ➖ Optional | LLM model ID (default: `gemini-3.6-flash`) |
-| `DATABASE_URL` | 🌐 Prod / Dev | Supabase PostgreSQL Transaction Pooler connection string (`postgresql://...`). Leave empty in local dev to automatically fall back to SQLite (`tenderai_dev.db`) |
-| `CELERY_BROKER_URL` | 🌐 Prod / Dev | Upstash Redis TLS URL (`rediss://:<password>@<host>:6379`) for Render/production or `redis://localhost:6379/0` for local Docker Redis |
-| `CELERY_RESULT_BACKEND` | 🌐 Prod / Dev | Same as `CELERY_BROKER_URL` for Celery async task state persistence |
+| `DATABASE_URL` | 🌐 Prod / dev | Supabase PostgreSQL Transaction Pooler connection string (`postgresql://...`). Leave empty locally to fall back to SQLite (`tenderai_dev.db`). |
+| `CELERY_BROKER_URL` | 🌐 Prod / dev | Upstash Redis TLS URL (`rediss://:<password>@<host>:6379`) for Render, or `redis://localhost:6379/0` for local Redis |
+| `CELERY_RESULT_BACKEND` | 🌐 Prod / dev | Same as `CELERY_BROKER_URL`; stores Celery task state |
 | `SUPABASE_URL` | 📦 Storage | Supabase project URL (`https://<project-ref>.supabase.co`) |
 | `SUPABASE_SERVICE_KEY` | 📦 Storage | Supabase `service_role` secret key (Settings → API) |
-| `SUPABASE_BUCKET` | 📦 Storage | Supabase Storage bucket for PDF documents (default: `tenders`) |
+| `SUPABASE_BUCKET` | 📦 Storage | Storage bucket for PDFs (default: `tenders`) |
 | `EMBEDDING_MODEL_NAME` | ➖ Optional | HuggingFace embedding model (default: `all-MiniLM-L6-v2`) |
-| `AWS_ACCESS_KEY_ID` | ☁️ AWS IaC | AWS credentials (only when deploying via `infra/terraform/`) |
-| `AWS_SECRET_ACCESS_KEY` | ☁️ AWS IaC | AWS credentials (only when deploying via `infra/terraform/`) |
-| `AWS_DEFAULT_REGION` | ☁️ AWS IaC | AWS region (e.g. `ap-south-1`) |
-| `SQS_QUEUE_URL` | ☁️ AWS IaC | SQS queue endpoint URL |
-
-> ✅ Required &nbsp;&nbsp; 🌐 Managed Cloud / Local &nbsp;&nbsp; 📦 Supabase Storage &nbsp;&nbsp; ➖ Optional &nbsp;&nbsp; ☁️ AWS Terraform only
-
+| `AWS_ACCESS_KEY_ID` | ☁️ AWS only | AWS credentials, needed only when deploying with `infra/terraform/` |
+| `AWS_SECRET_ACCESS_KEY` | ☁️ AWS only | AWS credentials, needed only when deploying with `infra/terraform/` |
+| `AWS_DEFAULT_REGION` | ☁️ AWS only | AWS region (for example `ap-south-1`) |
+| `SQS_QUEUE_URL` | ☁️ AWS only | SQS queue endpoint URL |
+ 
 ---
-
+ 
 ## 📊 API Reference
-
-### Core Endpoints
-
-| Method | Endpoint | Auth | Description |
-|:---|:---|:---:|:---|
-| `GET` | `/health` | — | Service liveness check |
-| `POST` | `/upload` | — | Upload tender PDF — non-blocking, returns `job_id` |
-| `GET` | `/jobs/{job_id}` | — | Poll job status (`pending → processing → completed / dead_letter`) |
-| `GET` | `/tenders` | — | List all processed tenders |
-| `GET` | `/admin/metrics` | — | Agent latency P50/P95, success rates, token counts |
-
-### Job Lifecycle States
-
+ 
+| Method | Endpoint | Description |
+|:---|:---|:---|
+| `GET` | `/health` | Liveness check |
+| `POST` | `/upload` | Upload a tender PDF. Non-blocking; returns a `job_id`. |
+| `GET` | `/jobs/{job_id}` | Poll job status (`pending → processing → completed / dead_letter`) |
+| `GET` | `/tenders` | List processed tenders |
+| `GET` | `/admin/metrics` | Agent latency P50/P95, success rates, token counts |
+ 
+None of these endpoints require authentication.
+ 
+Job lifecycle:
+ 
 ```
 pending  →  processing  →  completed
                 ↓
@@ -455,220 +440,223 @@ pending  →  processing  →  completed
                 ↓
            dead_letter
 ```
-
-### Example: Upload & Poll
-
+ 
+Example upload and poll:
+ 
 ```bash
 # 1. Upload a tender PDF
 curl -X POST http://localhost:8000/upload \
   -F "file=@tender.pdf" \
   -F "company_profile={\"company_name\":\"Acme Tech\",\"annual_turnover\":15000000}"
-
+ 
 # Response: {"job_id": 42, "status": "pending"}
-
+ 
 # 2. Poll for results
 curl http://localhost:8000/jobs/42
 # Response: full analysis including bid_decision, risks, compliance, summary
 ```
-
+ 
 ---
-
+ 
 ## 🧪 Evaluation Harness
-
-`eval_harness.py` implements a rigorous, fully reproducible evaluation framework.
-
-> ⚠️ Every metric is computed from actual runs. There are no hardcoded scores.
-
-### Modes
-
-| Mode | DB Required | API Key Required | What It Measures |
+ 
+`eval_harness.py` runs the benchmarks and is meant to be fully reproducible. Every metric comes from an actual run, and no scores are hardcoded.
+ 
+| Mode | DB | API key | What it measures |
 |:---|:---:|:---:|:---|
-| `smoke` | ❌ | ❌ | Corpus integrity: schema validation + gold span presence in PDFs |
-| `retrieval` | ✅ | ❌ | Vector search quality: Recall@1/3/5/10, MRR@10, latency |
-| `extraction` | ✅ | ✅ | Field extraction accuracy vs. ground truth (numeric + fuzzy matching) |
-| `ablation` | ✅ | ✅ | 4-way config grid: accuracy, tokens, cost, latency, grounding precision |
-| `corrigendum` | ✅ | ✅ | Amendment override correctness (deadline, EMD) |
-
-### Commands
-
+| `smoke` | No | No | Corpus integrity: schema validation and gold-span presence in the PDFs |
+| `retrieval` | Yes | No | Vector search quality: Recall@1/3/5/10, MRR@10, latency |
+| `extraction` | Yes | Yes | Field extraction accuracy against ground truth (numeric and fuzzy matching) |
+| `ablation` | Yes | Yes | The 4-way config grid: accuracy, tokens, cost, latency, grounding precision |
+| `corrigendum` | Yes | Yes | Whether amendments override the right fields (deadline, EMD) |
+ 
 ```bash
-# Corpus integrity check — runs in CI, no secrets needed
+# Corpus integrity check (runs in CI, needs no secrets)
 python eval_harness.py --mode smoke
-
+ 
 # Retrieval quality (Recall@K, MRR)
 python eval_harness.py --mode retrieval --k 10
-
-# Field extraction accuracy (requires GEMINI_API_KEY)
+ 
+# Field extraction accuracy (needs GEMINI_API_KEY)
 python eval_harness.py --mode extraction --limit 5
-
+ 
 # Full 4-way ablation grid
 python eval_harness.py --mode ablation --limit 5
-
+ 
 # Structure-aware chunking comparison
 python eval_harness.py --mode retrieval --chunking structure --k 10
-
-# Keep evaluation data in DB for inspection
+ 
+# Keep evaluation data in the DB for inspection
 python eval_harness.py --mode retrieval --k 5 --keep
 ```
-
-### Empirical Benchmark Results (Real Harness Runs)
-
-Unlike synthetic estimates or speculative claims, all TenderAI benchmarks are empirically measured on the synthetic RFP corpus via `eval_harness.py`. Every run emits an immutable artifact in `eval_results/` for scientific auditability.
-
-#### 1. Retrieval Benchmarks (18 Documents, 342 Gold Questions)
-*Artifacts: `eval_results/retrieval-20261002T065849Z.json` & `eval_results/retrieval-20261002T070144Z.json`*
-
-| Chunking Strategy | Chunks Indexed | R@1 | R@3 | R@5 | R@10 | MRR@10 | Mean Latency | P95 Latency |
+ 
+### Benchmark results
+ 
+All results were measured on the synthetic RFP corpus. Each run writes an artifact to `eval_results/` so it can be audited.
+ 
+#### 1. Retrieval (18 documents, 342 gold questions)
+ 
+Artifacts: `eval_results/retrieval-20261002T065849Z.json` and `eval_results/retrieval-20261002T070144Z.json`
+ 
+| Chunking | Chunks indexed | R@1 | R@3 | R@5 | R@10 | MRR@10 | Mean latency | P95 latency |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Character (1000/200)** | 996 | **59.94%** | **73.39%** | **77.49%** | **85.67%** | **0.6808** | **30.58 ms** | **42.50 ms** |
-| **Structure-Aware** | 3,562 | **55.26%** | **65.79%** | **69.01%** | **80.12%** | **0.6205** | **78.88 ms** | **93.20 ms** |
-
-> 📌 **Key Architectural Finding:** Fixed-size character windowing (1000 chars, 200 overlap) achieved **+8.48% higher Recall@5** (77.49% vs 69.01%) and **2.6× faster retrieval latency** than heading-based structure splitting. The structure-aware strategy produced over 3.5× more chunks (3,562 vs. 996 chunks), resulting in higher search-space overhead and lower recall on short clauses.
-
-#### 2. Corpus Integrity & Smoke Test (Zero Data Leakage)
-*Artifact: `eval_results/smoke-20261012T134122Z.json`*
-
-| Metric | Target | Measured Result | Status |
+| **Structure-Aware** | 3,562 | 55.26% | 65.79% | 69.01% | 80.12% | 0.6205 | 78.88 ms | 93.20 ms |
+ 
+Fixed-size character windows (1000 chars, 200 overlap) beat heading-based splitting: **77.49% Recall@5** against 69.01%, about **8.5 points higher**, and retrieval ran roughly **2.6× faster**. The structure-aware strategy produced more than 3.5× as many chunks (3,562 vs. 996), which enlarges the search space and hurt recall on short clauses.
+ 
+#### 2. Corpus integrity (smoke test)
+ 
+Artifact: `eval_results/smoke-20261012T134122Z.json`
+ 
+| Check | Target | Result | Status |
 |:---|:---:|:---:|:---:|
-| Documents Validated | 18 | 18 | ✅ PASS |
-| Schema Conformity (`corpus/schema.json`) | 100% | 0 failures (100% valid) | ✅ PASS |
-| Gold Spans Verified Verbatim in PDF Text | 342 / 342 | 342 / 342 (100% verified) | ✅ PASS |
-| Anti-Leakage (Queries quoting answer) | 0 | 0 (No leakage) | ✅ PASS |
-
-#### 3. Field Extraction & Token Efficiency
-*Artifacts: `eval_results/extraction-20261002T070913Z.json` & `eval_results/ablation-20261002T070644Z.json`*
-
-| Field / Metric | Monolithic Baseline (`mono-full`) | TenderAI Multi-Agent RAG (`multi-rag`) |
+| Documents validated | 18 | 18 | ✅ PASS |
+| Schema conformity (`corpus/schema.json`) | 100% | 0 failures | ✅ PASS |
+| Gold spans found verbatim in PDF text | 342 / 342 | 342 / 342 | ✅ PASS |
+| Leakage (queries quoting the answer) | 0 | 0 | ✅ PASS |
+ 
+#### 3. Field extraction and token use
+ 
+Artifacts: `eval_results/extraction-20261002T070913Z.json` and `eval_results/ablation-20261002T070644Z.json`
+ 
+| Field / metric | Monolithic (`mono-full`) | Multi-agent RAG (`multi-rag`) |
 |:---|:---:|:---:|
-| Minimum Annual Turnover | 100.0% | **100.0%** |
-| Earnest Money Deposit (EMD) | 100.0% | **100.0%** |
-| Solvency Certificate Required | 0.0% (lost in context) | **100.0%** |
-| Submission Deadline | 100.0% | **100.0%** |
-| Tender Title | 100.0% | **100.0%** |
-| **Macro Field Accuracy** | **80.0%** | **100.0%** |
-| **Mean Total Tokens / Doc** | 12,426 | **11,635** |
-| **Mean Latency / Doc** | 17,866 ms (~17.9s) | **9,745 ms (~9.7s)** |
-
-**CI Pass Criterion:** Recall@5 ≥ 50% (fails automatically if retriever degrades).
-
+| Minimum annual turnover | 100.0% | 100.0% |
+| Earnest money deposit (EMD) | 100.0% | 100.0% |
+| Solvency certificate required | 0.0% (lost in context) | **100.0%** |
+| Submission deadline | 100.0% | 100.0% |
+| Tender title | 100.0% | 100.0% |
+| **Macro field accuracy** | **80.0%** | **100.0%** |
+| **Mean total tokens per doc** | 12,426 | **11,635** |
+| **Mean latency per doc** | 17,866 ms (~17.9 s) | **9,745 ms** (~9.7 s) |
+ 
+**CI pass criterion:** Recall@5 ≥ 50%. The build fails if the retriever drops below that.
+ 
 ---
-
+ 
 ## ⚖️ Bid / No-Bid Decision Engine
-
-The `BidDecisionEngine` (`app/services/bid_decision_engine.py`) produces a fully auditable `BidDecision`:
-
+ 
+`BidDecisionEngine` (`app/services/bid_decision_engine.py`) returns an auditable `BidDecision`:
+ 
 ```python
 BidDecision(
     recommendation="GO_BID" | "CONDITIONAL_BID" | "NO_BID",
     composite_score=81.0,          # (87.0 × 0.50) + (75.0 × 0.30) + ((100 − 25.0) × 0.20) = 81.0
-    calibrated_confidence=0.87,    # 0.0–1.0
+    calibrated_confidence=0.87,    # 0.0 to 1.0
     compliance_score=87.0,         # sub-score (weight: 50%)
-    risk_penalty=25.0,             # subtracted from 100 before 20% weighting
+    risk_penalty=25.0,             # subtracted from 100 before the 20% weighting
     technical_fit_score=75.0,      # sub-score (weight: 30%)
     key_decision_factors=[...],    # human-readable factors
     explanation="GO_BID recommended. Strong alignment...",
 )
 ```
-
-**Formula:**
+ 
+Formula:
+ 
 ```
 CompositeScore = (ComplianceScore × 0.50)
               + (TechnicalFit   × 0.30)
               + (max(0, 100 − RiskPenalty) × 0.20)
 ```
-
+ 
 ---
-
+ 
 ## ☁️ Production Cloud Deployment (Render + Supabase + Upstash + Firebase)
-
-TenderAI provides a high-performance, cost-effective, zero-maintenance cloud architecture using modern managed platforms:
-- **FastAPI Backend & Celery Worker**: Hosted on [Render](https://render.com) using container runtimes declared in `render.yaml`.
-- **Database & Vector Store**: Managed PostgreSQL with `pgvector` on [Supabase](https://supabase.com).
-- **PDF File Storage**: Supabase Storage (`tenders` bucket) replacing AWS S3.
-- **Asynchronous Message Broker**: Serverless Redis with TLS encryption on [Upstash](https://upstash.com).
-- **Frontend SPA**: Global edge static hosting on [Firebase Hosting](https://firebase.google.com).
-
-### Step 1: Provision Supabase (PostgreSQL, pgvector & Storage)
-1. Sign in to [Supabase](https://supabase.com) and create a new project.
-2. **Enable pgvector**: Open the Supabase **SQL Editor** and run:
-   ```sql
+ 
+This setup uses managed services and needs no server administration:
+- FastAPI backend and Celery worker on [Render](https://render.com), declared in `render.yaml`
+- PostgreSQL with `pgvector` on [Supabase](https://supabase.com)
+- PDF storage in Supabase Storage (`tenders` bucket), which replaces AWS S3
+- Redis broker with TLS on [Upstash](https://upstash.com)
+- Frontend SPA on [Firebase Hosting](https://firebase.google.com)
+### Step 1: Set up Supabase (PostgreSQL, pgvector, Storage)
+ 
+1. Sign in to [Supabase](https://supabase.com) and create a project.
+2. Enable pgvector. In the **SQL Editor**, run:
+```sql
    CREATE EXTENSION IF NOT EXISTS vector;
-   ```
-3. **Get Database Connection String**: Navigate to **Project Settings → Database → Connection string**, select the **Transaction** mode tab (Port `5432` / pooler), and copy the URI:
-   ```
+```
+3. Get the connection string. Go to **Project Settings → Database → Connection string**, pick the **Transaction** tab (port `5432`, pooler), and copy the URI:
+```
    postgresql://postgres.<project-ref>:<db-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
-   ```
-4. **Create PDF Storage Bucket**: Go to **Storage → New bucket**, name it `tenders`, and configure public read access or signed URL access.
-5. **Collect API Credentials**: Under **Project Settings → API**, copy:
+```
+4. Create the storage bucket. Under **Storage → New bucket**, name it `tenders` and set either public read access or signed URLs.
+5. Collect API credentials from **Project Settings → API**:
    - Project URL (`SUPABASE_URL`)
    - `service_role` secret key (`SUPABASE_SERVICE_KEY`)
-
-### Step 2: Provision Upstash Redis (Celery Message Broker)
-1. Sign in to [Upstash Console](https://console.upstash.com) and create a new Redis database.
-2. Under the **Connect** section, copy the TLS-enabled connection string starting with `rediss://`:
-   ```
+### Step 2: Set up Upstash Redis (Celery broker)
+ 
+1. Sign in to the [Upstash Console](https://console.upstash.com) and create a Redis database.
+2. Under **Connect**, copy the TLS connection string that starts with `rediss://`:
+```
    rediss://:<password>@<host>:6379
-   ```
-
-### Step 3: Deploy Backend & Worker on Render via Blueprint
-TenderAI includes a complete `render.yaml` Blueprint that deploys both the FastAPI web service (`tenderai-api`) and Celery worker (`tenderai-worker`) with zero manual server configuration.
-
-1. Push your repository to GitHub.
+```
+ 
+### Step 3: Deploy the backend and worker on Render
+ 
+`render.yaml` defines both the FastAPI web service (`tenderai-api`) and the Celery worker (`tenderai-worker`), so there's no manual server setup.
+ 
+1. Push the repository to GitHub.
 2. Sign in to the [Render Dashboard](https://dashboard.render.com).
-3. Click **New + → Blueprint** and select your repository.
-4. Render will parse `render.yaml` and prompt you to fill in the shared secret environment variables (`tenderai-secrets` group):
-   - `DATABASE_URL`: Your Supabase connection string.
-   - `CELERY_BROKER_URL`: Your Upstash Redis `rediss://` URL.
-   - `CELERY_RESULT_BACKEND`: Same Upstash Redis `rediss://` URL.
-   - `GEMINI_API_KEY`: Your Google Gemini API key.
+3. Click **New + → Blueprint** and pick your repository.
+4. Render parses `render.yaml` and asks for the shared secrets (`tenderai-secrets` group):
+   - `DATABASE_URL`: your Supabase connection string
+   - `CELERY_BROKER_URL`: your Upstash `rediss://` URL
+   - `CELERY_RESULT_BACKEND`: the same Upstash URL
+   - `GEMINI_API_KEY`: your Google Gemini API key
    - `SUPABASE_URL`: `https://<project-ref>.supabase.co`
-   - `SUPABASE_SERVICE_KEY`: Supabase `service_role` secret.
+   - `SUPABASE_SERVICE_KEY`: the Supabase `service_role` secret
    - `SUPABASE_BUCKET`: `tenders`
-5. Click **Apply**. Render will build and deploy both containers (`Dockerfile.api` on port 8000 and `Dockerfile.worker`).
-
-### Step 4: Run Database Migrations
-Run Alembic migrations to create tables and vector indexes on Supabase:
+5. Click **Apply**. Render builds and deploys both containers (`Dockerfile.api` on port 8000 and `Dockerfile.worker`).
+### Step 4: Run migrations
+ 
+Create the tables and vector indexes on Supabase:
+ 
 ```bash
-# Locally with your DATABASE_URL set in .env:
+# Locally, with DATABASE_URL set in .env:
 alembic upgrade head
 ```
-*(Or execute `alembic upgrade head` via the Render Web Shell on the `tenderai-api` service).*
-
-### Step 5: Deploy Frontend to Firebase Hosting
-1. Install Firebase CLI (if not already installed):
-   ```bash
+ 
+You can also run `alembic upgrade head` from the Render web shell on the `tenderai-api` service.
+ 
+### Step 5: Deploy the frontend to Firebase Hosting
+ 
+1. Install the Firebase CLI if you don't have it:
+```bash
    npm install -g firebase-tools
    firebase login
-   ```
+```
 2. Build the Vite production bundle:
-   ```bash
+```bash
    cd frontend
    npm install
    npm run build
    cd ..
-   ```
-3. Deploy to Firebase Hosting:
-   ```bash
+```
+3. Deploy:
+```bash
    firebase deploy --only hosting
-   ```
-Your web dashboard is now live globally on Firebase CDN, streaming tenders directly to your Render API and Supabase/Upstash backend!
-
+```
+ 
+The dashboard is now live on Firebase's CDN and talks to the Render API.
+ 
 ---
-
+ 
 ## ☁️ AWS Cloud Infrastructure (Terraform Alternative)
-
-Full infrastructure defined as code in `infra/terraform/`:
-
+ 
+The AWS alternative is defined in `infra/terraform/`:
+ 
 | File | Resources |
 |:---|:---|
-| `main.tf` | ECS Fargate (API + Worker), RDS PostgreSQL, S3, SQS, Lambda trigger |
+| `main.tf` | ECS Fargate (API + worker), RDS PostgreSQL, S3, SQS, Lambda trigger |
 | `networking.tf` | VPC, subnets, security groups, NAT gateway |
-| `iam.tf` | IAM roles and policies for ECS, Lambda, S3 access |
+| `iam.tf` | IAM roles and policies for ECS, Lambda and S3 access |
 | `variables.tf` | Configurable variables (region, instance sizes, etc.) |
 | `outputs.tf` | ALB DNS, RDS endpoint, SQS URL, S3 bucket name |
-
-### Deploy Infrastructure
-
+ 
+Deploy:
+ 
 ```bash
 cd infra/terraform
 cp terraform.tfvars.example terraform.tfvars   # fill in your values
@@ -676,53 +664,50 @@ terraform init
 terraform plan
 terraform apply -auto-approve
 ```
-
-### Frontend Production Build (Vite)
-
-To compile the frontend SPA for production deployment (e.g. AWS S3 + CloudFront or Vercel):
-
+ 
+To build the frontend for another host (S3 + CloudFront, Vercel, etc.):
+ 
 ```bash
 cd frontend
 npm run build
-# Production bundle output generated in frontend/dist/
+# Output lands in frontend/dist/
 ```
-
+ 
 ---
-
+ 
 ## 🧪 Testing
-
+ 
 ```bash
-# Run all unit & integration tests
+# Run all unit and integration tests
 python -m pytest tests/ -v
-
-# Run with coverage report
+ 
+# With a coverage report
 python -m pytest tests/ --cov=app --cov-report=term-missing
 ```
-
+ 
 ---
-
+ 
 ## 📜 License
-
+ 
 Licensed under the [MIT License](LICENSE).
-
+ 
 ---
-
+ 
 <details>
-<summary>📋 Architecture Decision Records (ADRs)</summary>
-
-**Why LangGraph over raw ThreadPoolExecutor?**
-An earlier version used a hand-rolled `ThreadPoolExecutor` alongside the graph, meaning the compiled graph was never exercised and the two execution paths could silently diverge. LangGraph's Pregel loop provides correct concurrent scheduling and typed state reducers (`operator.add` for concurrent `tool_calls` accumulation).
-
-**Why pgvector over a dedicated vector database?**
-pgvector integrates directly into the existing PostgreSQL instance, eliminating an additional infrastructure component, reducing operational complexity, and maintaining transactional consistency between tender metadata and chunk embeddings in a single ACID-compliant database.
-
+<summary>Architecture decision records</summary>
+**Why LangGraph instead of a raw ThreadPoolExecutor?**
+An earlier version ran a hand-rolled `ThreadPoolExecutor` next to the graph. The compiled graph was never actually used, and the two execution paths could drift apart without anyone noticing. LangGraph's Pregel loop handles concurrent scheduling properly and gives typed state reducers (`operator.add` for merging concurrent `tool_calls`).
+ 
+**Why pgvector instead of a dedicated vector database?**
+pgvector lives in the PostgreSQL instance we already run. That removes one piece of infrastructure and keeps tender metadata and chunk embeddings in the same ACID database.
+ 
 **Why deterministic compliance instead of LLM compliance?**
-LLMs struggle with numeric magnitude scaling and Indian financial formats (`₹5 Crore`, `50 Lakhs`). Python regex parsing + numeric comparison is deterministic, auditable, and requires zero API calls.
-
-**Why `total_token_count` instead of `prompt + completion` for cost estimation?**
-On gemini-3.x flash models, `total_token_count` includes billable "thinking" (reasoning) tokens that are not broken out separately. Using `prompt + completion` alone undercounts by an order of magnitude.
-
-**Why full-dict reassignment for `tender.details`?**
-SQLAlchemy's default JSON column type is not mutation-tracked. In-place dict edits (e.g., `tender.details["key"] = val`) are silently not flushed. The corrigendum path always reassigns the entire dict to guarantee the ORM sees the change.
-
+LLMs trip over magnitude scaling and Indian number formats like `₹5 Crore` and `50 Lakhs`. Regex parsing plus numeric comparison in Python is deterministic, easy to audit, and needs no API calls.
+ 
+**Why `total_token_count` instead of `prompt + completion` for cost estimates?**
+On gemini-3.x flash models, `total_token_count` includes billable "thinking" tokens that aren't broken out separately. Summing prompt and completion alone undercounts by an order of magnitude.
+ 
+**Why reassign the whole dict for `tender.details`?**
+SQLAlchemy's default JSON column type doesn't track mutations. An in-place edit like `tender.details["key"] = val` is silently never flushed. The corrigendum path reassigns the entire dict so the ORM sees the change.
+ 
 </details>
