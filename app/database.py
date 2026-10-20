@@ -54,10 +54,19 @@ def initialize_database():
         ) from exc
 
 
+# Module-level engine used by SessionLocal.
+# Wrapped so that a missing PostgreSQL driver (e.g. psycopg absent in a CI
+# environment that only tests URL-construction logic) does not crash the import.
+# initialize_database() re-creates the engine and surfaces a clean RuntimeError.
+_pg_driver_import_error: Exception | None = None
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    try:
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    except ModuleNotFoundError as _e:
+        engine = None  # type: ignore[assignment]
+        _pg_driver_import_error = _e
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
