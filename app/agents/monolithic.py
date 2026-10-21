@@ -70,7 +70,7 @@ class MonolithicAgent(BaseAgent):
         prompt = f"""You are a senior tender analyst. Read the tender document below and \
 produce ALL of the following in a single JSON response:
 
-1. Key extracted facts (title, deadline, eligibility, financial requirements).
+1. Key extracted facts (title, deadline, eligibility, financial requirements including turnover, EMD, and whether a solvency certificate is required).
 2. Top risk factors (up to 5).
 3. A 2-3 paragraph executive summary.
 4. Whether the following company profile meets the tender's eligibility:
@@ -87,6 +87,7 @@ Respond ONLY with a valid JSON object matching EXACTLY this schema:
   "eligibility_criteria": ["<string>", ...],
   "minimum_turnover": "<string or null>",
   "earnest_money_deposit_emd": "<string or null>",
+  "solvency_certificate_required": <true|false>,
   "overall_risk_rating": "<Low|Medium|High>",
   "top_risks": ["<risk item string>", ...],
   "executive_summary": "<2-3 paragraph summary>",

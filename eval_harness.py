@@ -40,7 +40,7 @@ Usage
     python eval_harness.py --mode smoke
     python eval_harness.py --mode retrieval --k 10
     python eval_harness.py --mode extraction --limit 5
-    python eval_harness.py --mode ablation --limit 5
+    python eval_harness.py --mode ablation --repeats 3
 
 Results are written to eval_results/<mode>-<timestamp>.json so paper tables can
 be regenerated rather than retyped.
@@ -55,7 +55,8 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from statistics import mean
+from statistics import mean, stdev
+from math import sqrt
 from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
@@ -68,6 +69,29 @@ SCHEMA_PATH = CORPUS_DIR / "schema.json"
 RESULTS_DIR = Path(__file__).resolve().parent / "eval_results"
 
 RECALL_KS = (1, 3, 5, 10)
+
+
+def _mean_ci95(values: List[float]) -> Dict[str, Optional[float]]:
+    """Summarize independent run-level observations with a two-sided 95% t interval."""
+    if not values:
+        return {"mean": None, "ci95_low": None, "ci95_high": None}
+
+    average = mean(values)
+    if len(values) < 2:
+        return {"mean": average, "ci95_low": None, "ci95_high": None}
+
+    # Exact two-sided 95% Student-t critical values for the small repeat counts
+    # practical for a model-backed evaluation; use the normal limit thereafter.
+    t_critical = {
+        2: 12.706, 3: 4.303, 4: 3.182, 5: 2.776, 6: 2.571,
+        7: 2.447, 8: 2.365, 9: 2.306, 10: 2.262,
+    }.get(len(values), 1.96)
+    margin = t_critical * stdev(values) / sqrt(len(values))
+    return {
+        "mean": average,
+        "ci95_low": average - margin,
+        "ci95_high": average + margin,
+    }
 
 
 def _model_name() -> str:
@@ -357,7 +381,7 @@ def _ingest(db, ann: Dict[str, Any], text: str, embedder, chunking_strategy: str
     Reuses the production PDFProcessor and TextEmbedder so the harness measures
     the same pipeline the app runs, not a parallel reimplementation.
     """
-    from app.models import Tender, TenderChunk
+    from app.models import Tender, TenderChunk, ToolCall
 
     tender = Tender(title=f"[eval] {ann['doc_id']}", raw_text=text)
     db.add(tender)
@@ -616,17 +640,29 @@ def run_extraction(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
     def mark(flag: Optional[bool]) -> str:
         return "n/a" if flag is None else ("ok" if flag else "MISS")
 
-    for ann in annotations:
+    for ann_idx, ann in enumerate(annotations):
         text = extract_text(ann)
         gold = ann["fields"]
 
-        try:
-            facts, record = agent.extract_details(text)
-        except AgentError as exc:
-            failures += 1
-            print(f"{ann['doc_id']:<14} {'ERROR':>9}  {exc}")
-            per_doc.append({"doc_id": ann["doc_id"], "error": str(exc),
-                            "latency_ms": exc.record.latency_ms})
+        max_doc_retries = 3
+        extracted_ok = False
+        for attempt in range(max_doc_retries):
+            try:
+                facts, record = agent.extract_details(text)
+                extracted_ok = True
+                break
+            except AgentError as exc:
+                if attempt < max_doc_retries - 1:
+                    delay = 3.0 * (2 ** attempt)
+                    print(f"{ann['doc_id']:<14} [Attempt {attempt+1}/{max_doc_retries} failed: {exc}]. Retrying in {delay:.1f}s...")
+                    time.sleep(delay)
+                else:
+                    failures += 1
+                    print(f"{ann['doc_id']:<14} {'ERROR':>9}  {exc}")
+                    per_doc.append({"doc_id": ann["doc_id"], "error": str(exc),
+                                    "latency_ms": exc.record.latency_ms})
+
+        if not extracted_ok:
             continue
 
         turnover_ok = _money_match(gold.get("minimum_turnover"),
@@ -680,6 +716,9 @@ def run_extraction(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
             "total_tokens": record.total_tokens,
             "latency_ms": record.latency_ms,
         })
+
+        if ann_idx < len(annotations) - 1:
+            time.sleep(1.5)
 
     accuracy = {k: (sum(v) / len(v) if v else None) for k, v in field_hits.items()}
     scored = [a for a in accuracy.values() if a is not None]
@@ -868,43 +907,60 @@ def run_ablation(
             latencies_all:         List[float] = []
             failures  = 0
             cite_results = []   # CitationVerificationResult per doc (rag-cite only)
+            source_documents: Dict[str, int] = {}
+            source_field_hits: Dict[str, Dict[str, List[bool]]] = {}
+            source_tokens: Dict[str, List[int]] = {}
+            source_latencies: Dict[str, List[float]] = {}
+            source_citations: Dict[str, Dict[str, int]] = {}
 
-            for ann in annotations:
+            for ann_idx, ann in enumerate(annotations):
                 doc_id = ann["doc_id"]
                 text   = extract_text(ann)
                 gold   = ann["fields"]
                 tid    = tender_ids[doc_id]
 
-                try:
-                    t0 = time.perf_counter()
+                max_doc_retries = 3
+                doc_success = False
+                for attempt in range(max_doc_retries):
+                    try:
+                        t0 = time.perf_counter()
 
-                    if agent_mode is None:
-                        # ── Monolithic baseline ──────────────────────────────
-                        output, record = mono_agent.analyze(text)
-                        facts_dict = output.model_dump()
-                        state_dict = None
-                        pt  = record.prompt_tokens or 0
-                        ct  = record.completion_tokens or 0
-                        tot = record.total_tokens or 0
+                        if agent_mode is None:
+                            # ── Monolithic baseline ──────────────────────────────
+                            output, record = mono_agent.analyze(text)
+                            facts_dict = output.model_dump()
+                            state_dict = None
+                            pt  = record.prompt_tokens or 0
+                            ct  = record.completion_tokens or 0
+                            tot = record.total_tokens or 0
 
-                    else:
-                        # ── Multi-agent ──────────────────────────────────────
-                        state = orchestrator.run_analysis(
-                            tender_id=tid, raw_text=text, db=db, mode=agent_mode
-                        )
-                        facts_dict = (
-                            state.extracted_facts.model_dump() if state.extracted_facts else {}
-                        )
-                        pt  = sum(r.prompt_tokens     or 0 for r in state.tool_calls)
-                        ct  = sum(r.completion_tokens or 0 for r in state.tool_calls)
-                        tot = sum(r.total_tokens      or 0 for r in state.tool_calls)
-                        state_dict = state.model_dump(mode="json") if agent_mode == "rag-cite" else None
+                        else:
+                            # ── Multi-agent ──────────────────────────────────────
+                            state = orchestrator.run_analysis(
+                                tender_id=tid, raw_text=text, db=db, mode=agent_mode
+                            )
+                            facts_dict = (
+                                state.extracted_facts.model_dump() if state.extracted_facts else {}
+                            )
+                            pt  = sum(r.prompt_tokens     or 0 for r in state.tool_calls)
+                            ct  = sum(r.completion_tokens or 0 for r in state.tool_calls)
+                            tot = sum(r.total_tokens      or 0 for r in state.tool_calls)
+                            state_dict = state.model_dump(mode="json") if agent_mode == "rag-cite" else None
 
-                    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+                        elapsed_ms = int((time.perf_counter() - t0) * 1000)
+                        doc_success = True
+                        break
 
-                except (AgentError, Exception) as exc:
-                    failures += 1
-                    print(f"  {doc_id:<14} ERROR: {exc}")
+                    except (AgentError, Exception) as exc:
+                        if attempt < max_doc_retries - 1:
+                            delay = 5.0 * (2 ** attempt)
+                            print(f"  {doc_id:<14} [Attempt {attempt+1}/{max_doc_retries} failed: {exc}]. Backing off {delay:.1f}s...")
+                            time.sleep(delay)
+                        else:
+                            failures += 1
+                            print(f"  {doc_id:<14} ERROR (all retries exhausted): {exc}")
+
+                if not doc_success:
                     continue
 
                 # Field accuracy
@@ -913,11 +969,26 @@ def run_ablation(
                     if flag is not None:
                         field_hits[k_name].append(flag)
 
+                source = ann.get("source", "unknown")
+                source_documents[source] = source_documents.get(source, 0) + 1
+                source_hits = source_field_hits.setdefault(source, {
+                    name: [] for name in field_hits
+                })
+                for k_name, flag in field_scores.items():
+                    if flag is not None:
+                        source_hits[k_name].append(flag)
+
                 # Token / latency accumulation
-                if pt:  prompt_tokens_all.append(pt)
-                if ct:  completion_tokens_all.append(ct)
-                if tot: total_tokens_all.append(tot)
+                if pt:
+                    prompt_tokens_all.append(pt)
+                if ct:
+                    completion_tokens_all.append(ct)
+                if tot:
+                    total_tokens_all.append(tot)
                 latencies_all.append(elapsed_ms)
+                if tot:
+                    source_tokens.setdefault(source, []).append(tot)
+                source_latencies.setdefault(source, []).append(elapsed_ms)
 
                 # Citation verification (rag-cite only)
                 if agent_mode == "rag-cite" and state_dict is not None:
@@ -929,6 +1000,13 @@ def run_ablation(
                     chunk_map = {row.id: row.text_content for row in chunk_rows}
                     cv = verify_citations(state_dict, chunk_map)
                     cite_results.append(cv)
+                    source_cite = source_citations.setdefault(source, {
+                        "total": 0, "grounded": 0, "hallucinated": 0, "ungrounded": 0,
+                    })
+                    source_cite["total"] += cv.total
+                    source_cite["grounded"] += cv.grounded
+                    source_cite["hallucinated"] += cv.hallucinated
+                    source_cite["ungrounded"] += cv.ungrounded
 
                 def _m(flag) -> str:
                     return "n/a" if flag is None else ("ok" if flag else "MISS")
@@ -942,6 +1020,10 @@ def run_ablation(
                     f"{_m(field_scores.get('title')):>6} "
                     f"{tot:>8} {elapsed_ms:>7}"
                 )
+
+                # Inter-document rate throttling sleep
+                if ann_idx < len(annotations) - 1:
+                    time.sleep(2.0)
 
             # ── Config summary ───────────────────────────────────────────────
             accuracy  = {kk: (sum(v) / len(v) if v else None) for kk, v in field_hits.items()}
@@ -972,6 +1054,38 @@ def run_ablation(
                     "hallucination_rate":  ha / tc   if tc   > 0 else None,
                 }
 
+            by_source: Dict[str, Dict[str, Any]] = {}
+            for source, hits in source_field_hits.items():
+                source_accuracy = {
+                    name: (sum(values) / len(values) if values else None)
+                    for name, values in hits.items()
+                }
+                source_scored = [value for value in source_accuracy.values() if value is not None]
+                source_cite = source_citations.get(source)
+                source_cite_summary = None
+                if source_cite:
+                    cited = source_cite["total"] - source_cite["ungrounded"]
+                    source_cite_summary = {
+                        **source_cite,
+                        "grounding_precision": (
+                            source_cite["grounded"] / cited if cited > 0 else None
+                        ),
+                        "hallucination_rate": (
+                            source_cite["hallucinated"] / source_cite["total"]
+                            if source_cite["total"] > 0 else None
+                        ),
+                    }
+                by_source[source] = {
+                    "documents": source_documents[source],
+                    "field_accuracy": source_accuracy,
+                    "macro_field_accuracy": mean(source_scored) if source_scored else None,
+                    "mean_total_tokens": (
+                        mean(source_tokens[source]) if source_tokens.get(source) else None
+                    ),
+                    "mean_latency_ms": mean(source_latencies[source]),
+                    "citation_verification": source_cite_summary,
+                }
+
             print(f"  {'-'*72}")
             print(f"  Macro field accuracy   : {macro_acc * 100:.1f}%"    if macro_acc is not None else "  Macro field accuracy   : n/a")
             print(f"  Agent failures         : {failures}")
@@ -997,7 +1111,11 @@ def run_ablation(
                 "estimated_cost_usd": est_cost,
                 "mean_latency_ms": mean_lat,
                 "citation_verification": cite_summary,
+                "by_source": by_source,
             }
+
+            # Cooldown sleep between ablation configs to allow API rate limits to reset
+            time.sleep(5.0)
 
         # ── Cross-config table ───────────────────────────────────────────────
         print()
@@ -1048,10 +1166,109 @@ def run_ablation(
             print(f"\n  Kept {len(created_tender_ids)} ablation tenders in DB (--keep).")
         else:
             for tid in created_tender_ids:
+                db.query(ToolCall).filter(ToolCall.tender_id == tid).delete()
                 db.query(TenderChunk).filter(TenderChunk.tender_id == tid).delete()
                 db.query(Tender).filter(Tender.id == tid).delete()
             db.commit()
         db.close()
+
+
+def run_repeated_ablation(
+    limit: Optional[int],
+    k: int,
+    keep: bool,
+    chunking_strategy: str,
+    repeats: int,
+) -> Tuple[bool, Dict[str, Any]]:
+    """Run the complete ablation repeatedly and retain raw runs plus intervals."""
+    runs: List[Dict[str, Any]] = []
+    passed = True
+    for run_index in range(repeats):
+        print(f"\n  REPEAT {run_index + 1}/{repeats}")
+        run_passed, result = run_ablation(limit, k, keep, chunking_strategy)
+        runs.append(result)
+        passed = passed and run_passed
+
+    aggregate_grid: Dict[str, Dict[str, Any]] = {}
+    metric_names = (
+        "macro_field_accuracy", "mean_total_tokens", "mean_prompt_tokens",
+        "mean_completion_tokens", "estimated_cost_usd", "mean_latency_ms",
+    )
+    for config_id, first_config in runs[0].get("grid", {}).items():
+        aggregate = dict(first_config)
+        intervals: Dict[str, Any] = {}
+        for metric in metric_names:
+            values = [
+                run.get("grid", {}).get(config_id, {}).get(metric)
+                for run in runs
+            ]
+            values = [value for value in values if value is not None]
+            interval = _mean_ci95(values)
+            aggregate[metric] = interval["mean"]
+            intervals[metric] = interval
+
+        field_names = first_config.get("field_accuracy", {}).keys()
+        aggregate["field_accuracy"] = {}
+        for field_name in field_names:
+            values = [
+                run.get("grid", {}).get(config_id, {}).get("field_accuracy", {}).get(field_name)
+                for run in runs
+            ]
+            interval = _mean_ci95([value for value in values if value is not None])
+            aggregate["field_accuracy"][field_name] = interval["mean"]
+            intervals[f"field_accuracy.{field_name}"] = interval
+
+        aggregate["citation_verification"] = dict(first_config.get("citation_verification") or {}) or None
+        if aggregate["citation_verification"] is not None:
+            for metric in ("grounding_precision", "hallucination_rate"):
+                values = [
+                    run.get("grid", {}).get(config_id, {}).get("citation_verification", {}).get(metric)
+                    for run in runs
+                ]
+                interval = _mean_ci95([value for value in values if value is not None])
+                aggregate["citation_verification"][metric] = interval["mean"]
+                intervals[f"citation_verification.{metric}"] = interval
+
+        sources = set().union(*(
+            run.get("grid", {}).get(config_id, {}).get("by_source", {}).keys()
+            for run in runs
+        ))
+        aggregate["by_source"] = {}
+        for source in sorted(sources):
+            source_runs = [
+                run.get("grid", {}).get(config_id, {}).get("by_source", {}).get(source, {})
+                for run in runs
+            ]
+            source_summary: Dict[str, Any] = {
+                "documents": source_runs[0].get("documents", 0),
+                "field_accuracy": {},
+                "citation_verification": dict(source_runs[0].get("citation_verification") or {}) or None,
+            }
+            for metric in ("macro_field_accuracy", "mean_total_tokens", "mean_latency_ms"):
+                values = [item.get(metric) for item in source_runs]
+                interval = _mean_ci95([value for value in values if value is not None])
+                source_summary[metric] = interval["mean"]
+                intervals[f"by_source.{source}.{metric}"] = interval
+            source_fields = set().union(*(item.get("field_accuracy", {}).keys() for item in source_runs))
+            for field_name in source_fields:
+                values = [item.get("field_accuracy", {}).get(field_name) for item in source_runs]
+                interval = _mean_ci95([value for value in values if value is not None])
+                source_summary["field_accuracy"][field_name] = interval["mean"]
+                intervals[f"by_source.{source}.field_accuracy.{field_name}"] = interval
+            aggregate["by_source"][source] = source_summary
+
+        aggregate["repeat_intervals"] = intervals
+        aggregate_grid[config_id] = aggregate
+
+    result = dict(runs[0])
+    result.update({
+        "grid": aggregate_grid,
+        "repeats": repeats,
+        "interval_method": "95% Student-t confidence interval across independent full-corpus runs",
+        "runs": runs,
+        "passed": passed,
+    })
+    return passed, result
 
 
 def run_corrigendum(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
@@ -1141,6 +1358,8 @@ def main() -> int:
     parser.add_argument("--mode", choices=["smoke", "retrieval", "extraction", "ablation", "corrigendum"], default="smoke")
     parser.add_argument("--limit", type=int, default=None, help="Evaluate only the first N documents.")
     parser.add_argument("--k", type=int, default=10, help="Top-k for retrieval mode (default: 10).")
+    parser.add_argument("--repeats", type=int, default=1,
+                        help="Independent full-corpus repetitions for ablation mode (default: 1).")
     parser.add_argument("--chunking-strategy", choices=["character", "structure"], default="character",
                         help="Chunking strategy for retrieval/ablation ingest: 'character' "
                              "(1000-char window, 200 overlap — matches app/tasks.py) or "
@@ -1149,6 +1368,8 @@ def main() -> int:
                         help="Retrieval mode: leave ingested tenders in the DB for inspection.")
     parser.add_argument("--no-save", action="store_true", help="Do not write eval_results/*.json.")
     args = parser.parse_args()
+    if args.repeats < 1:
+        parser.error("--repeats must be at least 1")
 
     started = time.time()
     if args.mode == "smoke":
@@ -1160,7 +1381,9 @@ def main() -> int:
     elif args.mode == "corrigendum":
         passed, payload = run_corrigendum(args.limit)
     else:  # ablation
-        passed, payload = run_ablation(args.limit, args.k, args.keep, args.chunking_strategy)
+        passed, payload = run_repeated_ablation(
+            args.limit, args.k, args.keep, args.chunking_strategy, args.repeats
+        )
 
     payload["elapsed_seconds"] = round(time.time() - started, 3)
     payload["timestamp_utc"] = datetime.now(timezone.utc).isoformat()

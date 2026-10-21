@@ -178,6 +178,9 @@ class MonolithicOutput(BaseModel):
     eligibility_criteria: List[str] = Field(default_factory=list)
     minimum_turnover: Optional[str] = Field(None)
     earnest_money_deposit_emd: Optional[str] = Field(None)
+    solvency_certificate_required: bool = Field(
+        False, description="Is a bank solvency certificate required?"
+    )
     overall_risk_rating: str = Field(..., description="Low | Medium | High")
     top_risks: List[str] = Field(
         default_factory=list, description="Up to 5 risk items as plain strings."

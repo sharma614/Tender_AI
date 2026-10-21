@@ -92,3 +92,73 @@ def test_monolithic_agent_instantiation():
     from app.agents.monolithic import MonolithicAgent
     agent = MonolithicAgent()
     assert agent.agent_name == "MonolithicAgent"
+
+
+def test_monolithic_output_schema():
+    from app.schemas import MonolithicOutput
+    output = MonolithicOutput(
+        tender_title="Test RFP",
+        overall_risk_rating="Low",
+        executive_summary="Summary",
+        solvency_certificate_required=True,
+    )
+    assert output.solvency_certificate_required is True
+
+    # Test default
+    default_output = MonolithicOutput(
+        tender_title="Test RFP",
+        overall_risk_rating="Low",
+        executive_summary="Summary",
+    )
+    assert default_output.solvency_certificate_required is False
+
+
+def test_ablation_repeat_confidence_interval():
+    from eval_harness import _mean_ci95
+
+    summary = _mean_ci95([1.0, 2.0, 3.0])
+    assert summary["mean"] == 2.0
+    assert summary["ci95_low"] == pytest.approx(-0.4843382083)
+    assert summary["ci95_high"] == pytest.approx(4.4843382083)
+    assert _mean_ci95([2.0])["ci95_low"] is None
+
+
+def test_repeated_ablation_aggregates_runs_and_sources(monkeypatch):
+    import eval_harness
+
+    run_number = 0
+
+    def fake_run_ablation(*args):
+        nonlocal run_number
+        run_number += 1
+        score = run_number / 10
+        config = {
+            "field_accuracy": {"title": score},
+            "macro_field_accuracy": score,
+            "mean_total_tokens": 100 + run_number,
+            "mean_prompt_tokens": 80 + run_number,
+            "mean_completion_tokens": 20,
+            "estimated_cost_usd": None,
+            "mean_latency_ms": 200 + run_number,
+            "citation_verification": None,
+            "by_source": {
+                "real": {
+                    "documents": 1,
+                    "field_accuracy": {"title": score},
+                    "macro_field_accuracy": score,
+                    "mean_total_tokens": 100 + run_number,
+                    "mean_latency_ms": 200 + run_number,
+                    "citation_verification": None,
+                }
+            },
+        }
+        return True, {"mode": "ablation", "grid": {"test": config}}
+
+    monkeypatch.setattr(eval_harness, "run_ablation", fake_run_ablation)
+    passed, result = eval_harness.run_repeated_ablation(None, 10, False, "character", 3)
+
+    assert passed is True
+    assert len(result["runs"]) == 3
+    assert result["grid"]["test"]["macro_field_accuracy"] == pytest.approx(0.2)
+    assert result["grid"]["test"]["repeat_intervals"]["macro_field_accuracy"]["ci95_low"] < 0.1
+    assert result["grid"]["test"]["by_source"]["real"]["documents"] == 1
