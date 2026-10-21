@@ -13,9 +13,9 @@
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
  
-**TenderAI** reads a tender document (an RFP), pulls out the facts that matter, flags legal and financial risks, checks eligibility against a company profile, and ends with a bid / no-bid recommendation. The work is split across several LLM agents coordinated by **LangGraph**. Each agent sees only the chunks retrieved for its own job, using **RAG over pgvector**. Compliance checks are **plain Python, not LLM calls**. Uploads go through a Celery queue (**Upstash Redis**), so the API answers immediately while the analysis runs in the background. The web dashboard is a Vite SPA on Firebase, the backend runs on Render with Supabase for Postgres and storage, and there's an alternative AWS setup defined in Terraform.
+**TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph** and use **RAG over pgvector**; compliance checks run in Python. The repository includes deployment configurations for Render, Supabase, Upstash, Firebase Hosting, and AWS. These configurations describe deployment options; they do not mean the services are currently deployed or production-validated.
  
-Reading a 300-page RFP by hand can take 20 to 40 hours. TenderAI does it in minutes. On the synthetic tender corpus in this repo, the multi-agent pipeline hit **100% field accuracy** against **80%** for a single-prompt baseline, with **about 45% lower latency**.
+Historical evaluation numbers in this repository are exploratory and are not publication-ready. The archived four-arm ablation had failures in three arms; full-corpus repeated runs and confidence intervals are still required before making comparative accuracy or latency claims.
  
 ---
  
@@ -31,7 +31,7 @@ Reading a 300-page RFP by hand can take 20 to 40 hours. TenderAI does it in minu
 - [API Reference](#-api-reference)
 - [Evaluation Harness & Empirical Benchmarks](#-evaluation-harness)
 - [Bid Decision Engine](#-bid--no-bid-decision-engine)
-- [Production Cloud Deployment (Render + Supabase + Upstash + Firebase)](#-production-cloud-deployment-render--supabase--upstash--firebase)
+- [Cloud Deployment Options](#-cloud-deployment-options)
 - [AWS Cloud Infrastructure (Terraform Alternative)](#-aws-cloud-infrastructure-terraform-alternative)
 - [Testing](#-testing)
 - [License](#-license)
@@ -91,13 +91,13 @@ The nine steps:
 | Metric | `mono-full` (monolithic baseline) | `multi-rag` / `multi-rag-cite` (TenderAI) |
 |:---|:---:|:---:|
 | **Context per agent call** | Full document text (~45k chars) | ~12k chars of retrieved chunks (about 12 chunks) |
-| **Field accuracy** | **80.0%** (misses nested clauses such as solvency requirements) | **100.0%** (macro accuracy across all 5 tender fields) |
-| **Tokens per document** | 12,426 | 11,635 (includes reasoning tokens) |
-| **End-to-end latency** | 17,866 ms (~17.9 s) | 9,745 ms (~9.7 s), **about 45% lower** |
+| **Field accuracy** | Pending valid repeated rerun | Pending valid repeated rerun |
+| **Tokens per document** | Pending valid repeated rerun | Pending valid repeated rerun |
+| **End-to-end latency** | Pending valid repeated rerun | Pending valid repeated rerun |
 | **Hallucination protection** | None. Output is unanchored, so "lost in the middle" errors are possible | Citations checked by substring containment |
 | **Failure isolation** | A single failure breaks everything | Each agent fails on its own (Extraction, Summary, Risk, Compliance) |
  
-**Provenance:** measured on the synthetic tender corpus with `eval_harness.py`. Monolithic numbers are in `eval_results/ablation-20261002T070644Z.json`, and multi-agent extraction numbers are in `eval_results/extraction-20261002T070913Z.json`. Nothing here is estimated or filled in by hand. Because the corpus is synthetic, treat these as a comparison between the two approaches rather than a forecast for real-world tenders.
+**Evidence status:** the archived ablation artifact `eval_results/ablation-20261002T070644Z.json` contains only five documents, reports failures for three of four configurations, and cannot substantiate a four-way comparison. The older extraction artifact is a separate run and is not a substitute for the missing ablation arms. Do not cite the historical comparison as a result.
  
 **Problem:** the issue with a single call over a dense tender is that models lose details buried in the middle of long documents, invent values, and take a long time to respond. **Solution:** TenderAI splits the job across agents. Each one gets the top-K chunks for its domain (at most 12 chunks: 3 per query, up to 5 queries), so the context is about 12k characters instead of 45k.
  
@@ -268,8 +268,8 @@ All agents extend `BaseAgent` (`app/agents/base.py`), which:
 | Vector search and relational DB | Supabase PostgreSQL + pgvector (HNSW), or local SQLite | Managed |
 | Object storage | Supabase Storage (`tenders` bucket) | Managed, S3-compatible |
 | Task queue | Celery | ≥ 5.3 |
-| Message broker | Upstash Redis (TLS `rediss://`) or local Redis | Serverless |
-| Application hosting | Render (web service `tenderai-api`, background worker `tenderai-worker`) | Container blueprint |
+| Message broker | Upstash Redis (TLS `rediss://`) or local Redis | Full asynchronous deployment |
+| Application hosting | Render Web Service and Background Worker | Manual services; worker requires paid compute |
 | Frontend hosting | Firebase Hosting | CDN |
 | PDF processing | PyMuPDF (`fitz`) | ≥ 1.24 |
 | OCR fallback | Tesseract + Pillow | |
@@ -406,11 +406,12 @@ Copy `.env.example` to `.env`:
 | `GEMINI_API_KEY` | ✅ Required | Google Gemini API key for agent reasoning and extraction |
 | `GEMINI_MODEL_NAME` | ➖ Optional | LLM model ID (default: `gemini-3.6-flash`) |
 | `DATABASE_URL` | 🌐 Prod / dev | Supabase PostgreSQL Transaction Pooler connection string (`postgresql://...`). Leave empty locally to fall back to SQLite (`tenderai_dev.db`). |
-| `CELERY_BROKER_URL` | 🌐 Prod / dev | Upstash Redis TLS URL (`rediss://:<password>@<host>:6379`) for Render, or `redis://localhost:6379/0` for local Redis |
-| `CELERY_RESULT_BACKEND` | 🌐 Prod / dev | Same as `CELERY_BROKER_URL`; stores Celery task state |
+| `CELERY_BROKER_URL` | 🌐 Prod / dev | Upstash Redis TLS URL (`rediss://...`) when running the full Render async deployment; local Redis URL for local workers |
+| `CELERY_RESULT_BACKEND` | 🌐 Prod / dev | Same as `CELERY_BROKER_URL` |
 | `SUPABASE_URL` | 📦 Storage | Supabase project URL (`https://<project-ref>.supabase.co`) |
 | `SUPABASE_SERVICE_KEY` | 📦 Storage | Supabase `service_role` secret key (Settings → API) |
 | `SUPABASE_BUCKET` | 📦 Storage | Storage bucket for PDFs (default: `tenders`) |
+| `VITE_API_BASE_URL` | 🌐 Frontend deploy | Public API base URL, injected when building the Vite frontend; do not leave the deployed frontend pointed at localhost |
 | `EMBEDDING_MODEL_NAME` | ➖ Optional | HuggingFace embedding model (default: `all-MiniLM-L6-v2`) |
 | `AWS_ACCESS_KEY_ID` | ☁️ AWS only | AWS credentials, needed only when deploying with `infra/terraform/` |
 | `AWS_SECRET_ACCESS_KEY` | ☁️ AWS only | AWS credentials, needed only when deploying with `infra/terraform/` |
@@ -480,8 +481,8 @@ python eval_harness.py --mode retrieval --k 10
 # Field extraction accuracy (needs GEMINI_API_KEY)
 python eval_harness.py --mode extraction --limit 5
  
-# Full 4-way ablation grid
-python eval_harness.py --mode ablation --limit 5
+# Three independent full-corpus ablation repetitions
+python eval_harness.py --mode ablation --repeats 3
  
 # Structure-aware chunking comparison
 python eval_harness.py --mode retrieval --chunking structure --k 10
@@ -494,16 +495,16 @@ python eval_harness.py --mode retrieval --k 5 --keep
  
 All results were measured on the synthetic RFP corpus. Each run writes an artifact to `eval_results/` so it can be audited.
  
-#### 1. Retrieval (18 documents, 342 gold questions)
+#### 1. Historical retrieval (18 synthetic documents, 342 gold questions)
  
-Artifacts: `eval_results/retrieval-20261002T065849Z.json` and `eval_results/retrieval-20261002T070144Z.json`
+Artifacts: `eval_results/retrieval-20261002T065849Z.json` and `eval_results/retrieval-20261002T070144Z.json`. Both used the SQLite brute-force cosine fallback; PostgreSQL and its HNSW index were not exercised. Treat these only as exploratory chunking comparisons, not production pgvector results.
  
 | Chunking | Chunks indexed | R@1 | R@3 | R@5 | R@10 | MRR@10 | Mean latency | P95 latency |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Character (1000/200)** | 996 | **59.94%** | **73.39%** | **77.49%** | **85.67%** | **0.6808** | **30.58 ms** | **42.50 ms** |
 | **Structure-Aware** | 3,562 | 55.26% | 65.79% | 69.01% | 80.12% | 0.6205 | 78.88 ms | 93.20 ms |
  
-Fixed-size character windows (1000 chars, 200 overlap) beat heading-based splitting: **77.49% Recall@5** against 69.01%, about **8.5 points higher**, and retrieval ran roughly **2.6× faster**. The structure-aware strategy produced more than 3.5× as many chunks (3,562 vs. 996), which enlarges the search space and hurt recall on short clauses.
+In those SQLite fallback runs, character windows scored higher than structure-aware splitting. This comparison must be rerun against the production pgvector index before being used as a production retrieval claim.
  
 #### 2. Corpus integrity (smoke test)
  
@@ -516,20 +517,9 @@ Artifact: `eval_results/smoke-20261012T134122Z.json`
 | Gold spans found verbatim in PDF text | 342 / 342 | 342 / 342 | ✅ PASS |
 | Leakage (queries quoting the answer) | 0 | 0 | ✅ PASS |
  
-#### 3. Field extraction and token use
- 
-Artifacts: `eval_results/extraction-20261002T070913Z.json` and `eval_results/ablation-20261002T070644Z.json`
- 
-| Field / metric | Monolithic (`mono-full`) | Multi-agent RAG (`multi-rag`) |
-|:---|:---:|:---:|
-| Minimum annual turnover | 100.0% | 100.0% |
-| Earnest money deposit (EMD) | 100.0% | 100.0% |
-| Solvency certificate required | 0.0% (lost in context) | **100.0%** |
-| Submission deadline | 100.0% | 100.0% |
-| Tender title | 100.0% | 100.0% |
-| **Macro field accuracy** | **80.0%** | **100.0%** |
-| **Mean total tokens per doc** | 12,426 | **11,635** |
-| **Mean latency per doc** | 17,866 ms (~17.9 s) | **9,745 ms** (~9.7 s) |
+#### 3. Field extraction and ablation status
+
+The archived extraction artifact `eval_results/extraction-20261002T070913Z.json` covers one document. The archived ablation `eval_results/ablation-20261002T070644Z.json` covers five documents: `mono-full` had two agent failures, and each other arm failed on all five documents. The old 80%/100%, token, and latency comparison is withdrawn; it is not a valid four-arm result. Run `python eval_harness.py --mode ablation --repeats 3` after configuring the database and model credentials. The resulting JSON preserves each run and reports intervals and synthetic/real metrics separately.
  
 **CI pass criterion:** Recall@5 ≥ 50%. The build fails if the retriever drops below that.
  
@@ -562,15 +552,11 @@ CompositeScore = (ComplianceScore × 0.50)
  
 ---
  
-## ☁️ Production Cloud Deployment (Render + Supabase + Upstash + Firebase)
+## ☁️ Cloud Deployment Options
  
-This setup uses managed services and needs no server administration:
-- FastAPI backend and Celery worker on [Render](https://render.com), declared in `render.yaml`
-- PostgreSQL with `pgvector` on [Supabase](https://supabase.com)
-- PDF storage in Supabase Storage (`tenders` bucket), which replaces AWS S3
-- Redis broker with TLS on [Upstash](https://upstash.com)
-- Frontend SPA on [Firebase Hosting](https://firebase.google.com)
-### Step 1: Set up Supabase (PostgreSQL, pgvector, Storage)
+The app has a full asynchronous deployment path and a limited API-only demo path. Supabase schema migration is documented below; the Render and Firebase services still need to be created and configured. Manual creation may let an account choose Render's Free Web Service without adding a card, but this is account-dependent and does not provide a background worker.
+
+### Data services: Supabase and Upstash
  
 1. Sign in to [Supabase](https://supabase.com) and create a project.
 2. Enable pgvector. In the **SQL Editor**, run:
@@ -581,11 +567,11 @@ This setup uses managed services and needs no server administration:
 ```
    postgresql://postgres.<project-ref>:<db-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
 ```
-4. Create the storage bucket. Under **Storage → New bucket**, name it `tenders` and set either public read access or signed URLs.
+4. Create a **private** storage bucket named `tenders`.
 5. Collect API credentials from **Project Settings → API**:
    - Project URL (`SUPABASE_URL`)
    - `service_role` secret key (`SUPABASE_SERVICE_KEY`)
-### Step 2: Set up Upstash Redis (Celery broker)
+For the full async Render deployment, create an Upstash Redis database and copy its TLS connection URL (`rediss://...`).
  
 1. Sign in to the [Upstash Console](https://console.upstash.com) and create a Redis database.
 2. Under **Connect**, copy the TLS connection string that starts with `rediss://`:
@@ -593,41 +579,44 @@ This setup uses managed services and needs no server administration:
    rediss://:<password>@<host>:6379
 ```
  
-### Step 3: Deploy the backend and worker on Render
- 
-`render.yaml` defines both the FastAPI web service (`tenderai-api`) and the Celery worker (`tenderai-worker`), so there's no manual server setup.
- 
-1. Push the repository to GitHub.
-2. Sign in to the [Render Dashboard](https://dashboard.render.com).
-3. Click **New + → Blueprint** and pick your repository.
-4. Render parses `render.yaml` and asks for the shared secrets (`tenderai-secrets` group):
-   - `DATABASE_URL`: your Supabase connection string
-   - `CELERY_BROKER_URL`: your Upstash `rediss://` URL
-   - `CELERY_RESULT_BACKEND`: the same Upstash URL
-   - `GEMINI_API_KEY`: your Google Gemini API key
-   - `SUPABASE_URL`: `https://<project-ref>.supabase.co`
-   - `SUPABASE_SERVICE_KEY`: the Supabase `service_role` secret
-   - `SUPABASE_BUCKET`: `tenders`
-5. Click **Apply**. Render builds and deploys both containers (`Dockerfile.api` on port 8000 and `Dockerfile.worker`).
-### Step 4: Run migrations
- 
-Create the tables and vector indexes on Supabase:
+### Render manual deployment
+
+The repository's Render Blueprint selects paid `starter` plans. If Render asks for payment details and you do not have a card, cancel that flow and try creating only the API manually:
+
+1. In the Render Dashboard, choose **New + → Web Service**.
+2. Connect GitHub and select `sharma614/Tender_AI`, branch `main`.
+3. Choose **Docker**. Set the Dockerfile path to `./Dockerfile.api`, health check path to `/health`, and instance type to **Free**.
+4. Add these environment variables in the service settings: `DATABASE_URL`, `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `SUPABASE_BUCKET=tenders`.
+5. If Render asks for a card even for the Free instance, stop. Do not enter payment details you do not have.
+
+For this API-only demo, **do not set** `CELERY_BROKER_URL` or `CELERY_RESULT_BACKEND`. The API then falls back to running the analysis inline when Redis is unavailable. This is not reliable for long tenders: model/embedding work may exceed request limits, and a Free Web Service can sleep and has limited memory. If a broker is configured without a worker, jobs can remain pending.
+
+For the full asynchronous Render deployment, create both the Web Service (`./Dockerfile.api`) and a **paid** Background Worker (`./Dockerfile.worker`), then configure:
+- `DATABASE_URL`: Supabase PostgreSQL URI (URL-encode special characters in the password)
+- `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND`: Upstash TLS URL
+- `GEMINI_API_KEY`
+- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `SUPABASE_BUCKET=tenders`
+
+Do not paste secrets into Git or chat. Review Render's current plans and charges before creating paid services.
+
+### Database migration
+
+The configured Supabase database is already migrated through Alembic revision `0003`. For a fresh database, configure `DATABASE_URL` locally and run:
  
 ```bash
-# Locally, with DATABASE_URL set in .env:
 alembic upgrade head
 ```
  
-You can also run `alembic upgrade head` from the Render web shell on the `tenderai-api` service.
+Avoid running migrations automatically on every serverless function startup.
  
-### Step 5: Deploy the frontend to Firebase Hosting
+### Frontend: Firebase Hosting
  
 1. Install the Firebase CLI if you don't have it:
 ```bash
    npm install -g firebase-tools
    firebase login
 ```
-2. Build the Vite production bundle:
+2. Set `VITE_API_BASE_URL` to the deployed API URL in the frontend build environment, then build the Vite production bundle:
 ```bash
    cd frontend
    npm install
@@ -639,7 +628,7 @@ You can also run `alembic upgrade head` from the Render web shell on the `tender
    firebase deploy --only hosting
 ```
  
-The dashboard is now live on Firebase's CDN and talks to the Render API.
+The Vite frontend can be hosted on Firebase's CDN. It does not host the FastAPI backend or Celery worker.
  
 ---
  
@@ -665,7 +654,7 @@ terraform plan
 terraform apply -auto-approve
 ```
  
-To build the frontend for another host (S3 + CloudFront, Vercel, etc.):
+To build the frontend for another static host:
  
 ```bash
 cd frontend
