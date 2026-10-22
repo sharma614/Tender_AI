@@ -1,0 +1,43 @@
+{
+  "doc_id": "real-gem-pnb-mdm-2025",
+  "pdf": "pdfs/BuyerATC_c5e9fb6a-6316-4454-a11c1766143744049_CPPD5157973.pdf",
+  "source": "real",
+  "page_count": 116,
+  "notes": "Public Punjab National Bank RFP, GeM bid GEM/2025/B/7023814. Retrieved 2026-10-21 from https://fulfilment.gem.gov.in/contract/slafds?fileDownloadPath=SLA_UPLOAD_PATH/2025/Dec/GEM_2025_B_7023814/CLM0010/BuyerATC_c5e9fb6a-6316-4454-a11c1766143744049_CPPD5157973.pdf. The standard-bidder turnover threshold is Rs. 7.50 Crores; the same criterion lists Rs. 04 Crores for MSE/Startup bidders, which is retained as a caveat because the annotation schema has one turnover value.",
+  "fields": {
+    "tender_title": "Procurement of 25000 Cloud Based (SaaS) User licenses for Mobile Device Management (MDM) Solution with Mobile Application Management (MAM)",
+    "minimum_turnover": {
+      "value": 75000000,
+      "currency": "INR",
+      "raw": "Rs. 7.50 Crores (standard bidder; Rs. 04 Crores for MSE/Startup bidders)"
+    },
+    "earnest_money_deposit_emd": {
+      "value": 3100000,
+      "currency": "INR",
+      "raw": "Rs. 31,00,000/-"
+    }
+  },
+  "questions": [
+    {
+      "id": 1,
+      "query": "What solution and license procurement is this RFP for?",
+      "gold_span": "Request For Proposal (RFP) for Procurement of 25000 Cloud Based (SaaS) User licenses for Mobile Device Management (MDM) Solution with Mobile Application Management (MAM).",
+      "gold_page": 1,
+      "field": "title"
+    },
+    {
+      "id": 2,
+      "query": "How much bid security must a bidder submit?",
+      "gold_span": "Bid Earnest Money/ Earnest Money Deposit (EMD) Bidder/has to submit the Bid Earnest Money/EMD of Rs. 31,00,000/-(Rupees Thirty-One Lakhs only) (EMD)",
+      "gold_page": 11,
+      "field": "emd"
+    },
+    {
+      "id": 3,
+      "query": "What financial turnover eligibility applies, including the stated MSE/Startup exception?",
+      "gold_span": "Bidder should have minimum average annual turnover of Rs. 7.50 Crores. (Rupees Seven Crore and Fifty Lakh only) (For MSE/Startup bidder(s): Rs. 04 Crores-Rupees Four Crore only)",
+      "gold_page": 60,
+      "field": "minimum_turnover"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import './style.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://tender-ai-9x0r.onrender.com';
 
 const app = document.querySelector('#app');
 
@@ -10,7 +10,7 @@ app.innerHTML = `
       <p class="eyebrow">TenderAI</p>
       <h1>AI tender analysis</h1>
       <p class="subtitle">
-        Frontend runs on Vite. The real app stays on AWS.
+        Vite dashboard talking to the FastAPI service on Render.
       </p>
 
       <div class="status-row">

@@ -224,10 +224,15 @@ class AgentOrchestrator:
 
         self._persist(state, db)
 
-        if state.errors:
+        if state.extracted_facts is None:
             raise RuntimeError(
-                f"{len(state.errors)} agent(s) failed for tender {tender_id}: "
-                + " | ".join(state.errors)
+                f"Extraction failed for tender {tender_id}: "
+                + " | ".join(state.errors or ["no extracted_facts"])
+            )
+        if state.errors:
+            print(
+                f"Warning: {len(state.errors)} non-fatal agent error(s) for "
+                f"tender {tender_id}: " + " | ".join(state.errors)
             )
 
         print(f"--- Orchestration Complete (mode={mode}) ---")

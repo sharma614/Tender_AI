@@ -111,18 +111,43 @@ def backend_label() -> str:
     """
     Name the vector-search backend actually in use for this run.
 
-    app/database.py silently falls back to SQLite when PostgreSQL is unreachable,
-    and app/services/retriever.py then takes a numpy brute-force cosine path
-    instead of pgvector's indexed `<=>` operator. Both compute genuine cosine
-    similarity, so recall figures are comparable — but only the pgvector path
-    exercises the HNSW index, so latency figures are not, and a run must not be
-    reported as pgvector evidence when it was not.
+    app/database.py refuses to fall back to SQLite when PostgreSQL is configured,
+    and app/services/retriever.py then uses pgvector cosine distance. A SQLite
+    DATABASE_URL still takes the numpy brute-force path. Latency figures from
+    those two backends are not interchangeable.
     """
     from app.database import DATABASE_URL
 
     if DATABASE_URL.startswith("sqlite"):
-        return "sqlite-bruteforce-cosine (PostgreSQL unreachable; HNSW index NOT exercised)"
+        return "sqlite-bruteforce-cosine (HNSW index NOT exercised)"
     return "pgvector-cosine"
+
+
+def vector_index_info() -> Dict[str, Any]:
+    """Inspect PostgreSQL indexes on tender_chunks.embedding, if any."""
+    from app.database import DATABASE_URL, engine
+    from sqlalchemy import text
+
+    if DATABASE_URL.startswith("sqlite") or engine is None:
+        return {"available": False, "indexes": []}
+
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text(
+                "SELECT indexname, indexdef FROM pg_indexes "
+                "WHERE tablename = 'tender_chunks'"
+            )).fetchall()
+        indexes = [{"name": row[0], "definition": row[1]} for row in rows]
+        uses_hnsw = any("hnsw" in (item["definition"] or "").lower() for item in indexes)
+        uses_ivfflat = any("ivfflat" in (item["definition"] or "").lower() for item in indexes)
+        return {
+            "available": True,
+            "indexes": indexes,
+            "hnsw": uses_hnsw,
+            "ivfflat": uses_ivfflat,
+        }
+    except Exception as exc:
+        return {"available": False, "error": str(exc), "indexes": []}
 
 
 # ===========================================================================
@@ -435,10 +460,12 @@ def run_retrieval(
     latencies: List[float] = []
     chunk_total = 0
 
+    index_info = vector_index_info()
     print("=" * 78)
     print(f"  RETRIEVAL EVALUATION (top-{top_k})")
     print(f"  backend: {backend_label()}")
     print(f"  chunking: {chunking_strategy}")
+    print(f"  index: {index_info}")
     print("=" * 78)
     print(f"{'DOC':<14} {'CHUNKS':>7} {'Q':>4} {'R@1':>6} {'R@5':>6} {'R@10':>6} {'MRR':>6} {'ms':>7}")
     print("-" * 78)
@@ -538,6 +565,7 @@ def run_retrieval(
             },
             "embedding_model": os.environ.get("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2"),
             "vector_backend": backend_label(),
+            "vector_index": vector_index_info(),
             "chunking_strategy": chunking_strategy,
             "chunk_size": 1000 if chunking_strategy == "character" else None,
             "chunk_overlap": 200 if chunking_strategy == "character" else None,
@@ -841,7 +869,7 @@ def run_ablation(
     from app.agents.monolithic import MonolithicAgent
     from app.agents.orchestrator import AgentOrchestrator
     from app.database import Base, SessionLocal, engine
-    from app.models import Tender, TenderChunk
+    from app.models import Tender, TenderChunk, ToolCall
     from app.services.citation_verifier import verify_citations
     from app.services.embedder import TextEmbedder
     from app.services.pdf_processor import PDFProcessor

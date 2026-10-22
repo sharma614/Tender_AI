@@ -1,0 +1,51 @@
+{
+  "doc_id": "real-gem-bob-sms-2025",
+  "pdf": "pdfs/ATC_def7d4c7-009e-4847-a0171764753173515_sanjay.yadav5.pdf",
+  "source": "real",
+  "page_count": 128,
+  "notes": "Public Bank of Baroda RFP, GeM bid GEM/2025/B/6960060. Retrieved 2026-10-21 from https://fulfilment.gem.gov.in/contract/slafds?fileDownloadPath=SLA_UPLOAD_PATH/2025/Dec/GEM_2025_B_6960060/CLM0010/ATC_def7d4c7-009e-4847-a0171764753173515_sanjay.yadav5.pdf. Only fields explicitly located in the RFP are annotated; solvency is not scored because no solvency-certificate requirement was found.",
+  "fields": {
+    "tender_title": "Selection of Telecom Operators to provide SMS Services for Bank of Baroda Sponsored Regional Rural Banks",
+    "submission_deadline": "24th December 2025 at 03:00 PM",
+    "minimum_turnover": {
+      "value": 500000000,
+      "currency": "INR",
+      "raw": "Rs. 50 Crores"
+    },
+    "earnest_money_deposit_emd": {
+      "value": 20000000,
+      "currency": "INR",
+      "raw": "Rs. 2 Crore"
+    }
+  },
+  "questions": [
+    {
+      "id": 1,
+      "query": "Which service is being procured and for which bank-sponsored institutions?",
+      "gold_span": "REQUEST FOR PROPOSAL FOR Selection of Telecom Operators to provide SMS Services for Bank of Baroda Sponsored Regional Rural Banks",
+      "gold_page": 1,
+      "field": "title"
+    },
+    {
+      "id": 2,
+      "query": "When must the bidder submit its response on GeM?",
+      "gold_span": "Last Date & Time for Submission of RFP response (Closing Date) 24th December 2025 at 03:00 PM (GeM Portal)",
+      "gold_page": 2,
+      "field": "deadline"
+    },
+    {
+      "id": 3,
+      "query": "What bid security amount is required, and are any bidder categories exempt?",
+      "gold_span": "Earnest Money Deposit Rs. 2 Crore. MSE / Startups and others will be exempted from EMD submission as per Govt. of India and/or GeM guidelines.",
+      "gold_page": 2,
+      "field": "emd"
+    },
+    {
+      "id": 4,
+      "query": "What average annual turnover threshold applies to bidders?",
+      "gold_span": "The Bidder must have registered an average annual turnover of Rs. 50 Crores or above from Indian Operations only",
+      "gold_page": 51,
+      "field": "minimum_turnover"
+    }
+  ]
+}

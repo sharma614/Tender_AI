@@ -35,8 +35,10 @@ client = TestClient(fastapi_app)
 def test_health_endpoint():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
-    assert "version" in response.json()
+    body = response.json()
+    assert body["status"] == "healthy"
+    assert "version" in body
+    assert body.get("job_runner") in {"inline-thread", "celery"}
 
 def test_html_entrypoints_are_not_cached():
     for path in ("/", "/dashboard", "/site", "/preview", "/public/index.html", "/static/dashboard.html"):

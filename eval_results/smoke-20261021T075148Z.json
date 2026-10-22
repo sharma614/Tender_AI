@@ -1,0 +1,237 @@
+{
+  "mode": "smoke",
+  "documents": 20,
+  "questions": 349,
+  "by_source": {
+    "real": 2,
+    "synthetic": 18
+  },
+  "schema_failures": 0,
+  "missing_spans": 0,
+  "queries_quoting_answer": [],
+  "passed": true,
+  "per_document": [
+    {
+      "doc_id": "real-gem-bob-sms-2025",
+      "source": "real",
+      "page_count": 128,
+      "questions": 4,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "real-gem-pnb-mdm-2025",
+      "source": "real",
+      "page_count": 116,
+      "questions": 3,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-001",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-002",
+      "source": "synthetic",
+      "page_count": 14,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-003",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-004",
+      "source": "synthetic",
+      "page_count": 12,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-005",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-006",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-007",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-008",
+      "source": "synthetic",
+      "page_count": 12,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-009",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-010",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-011",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-012",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-013",
+      "source": "synthetic",
+      "page_count": 12,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-014",
+      "source": "synthetic",
+      "page_count": 14,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-015",
+      "source": "synthetic",
+      "page_count": 14,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-016",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-017",
+      "source": "synthetic",
+      "page_count": 14,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    },
+    {
+      "doc_id": "synth-018",
+      "source": "synthetic",
+      "page_count": 13,
+      "questions": 19,
+      "schema_ok": true,
+      "schema_errors": [],
+      "missing_spans": [],
+      "query_quotes_answer": [],
+      "extract_error": null
+    }
+  ],
+  "elapsed_seconds": 2.919,
+  "timestamp_utc": "2026-10-21T07:51:48.983701+00:00"
+}

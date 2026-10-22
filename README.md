@@ -1,4 +1,4 @@
-# TenderAI: Enterprise Multi-Agent Tender Analysis, Risk Evaluation & Compliance System
+# TenderAI: Minor Project on Multi-Agent Tender Analysis and Compliance
  
 [![CI/CD Pipeline](https://github.com/sharma614/Tender_AI/actions/workflows/ci.yml/badge.svg)](https://github.com/sharma614/Tender_AI/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com)
@@ -13,9 +13,29 @@
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
  
-**TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph** and use **RAG over pgvector**; compliance checks run in Python. The repository includes deployment configurations for Render, Supabase, Upstash, Firebase Hosting, and AWS. These configurations describe deployment options; they do not mean the services are currently deployed or production-validated.
+**TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph** and use **RAG over pgvector**; compliance checks run in Python. The repository includes deployment configurations for Render, Supabase, Upstash, Firebase Hosting, and AWS. Firebase Hosting at [tenderai-app-614.web.app](https://tenderai-app-614.web.app) and the Render API `/health` endpoint had returned HTTP 200 in an earlier check on 2026-10-22 (API version `1.2.0`); a later `/health` check timed out after 90 seconds, while `/tenders` had returned HTTP 500. The Render demo is unverified end to end.
  
-Historical evaluation numbers in this repository are exploratory and are not publication-ready. The archived four-arm ablation had failures in three arms; full-corpus repeated runs and confidence intervals are still required before making comparative accuracy or latency claims.
+Historical ablation numbers in this repository are exploratory and are not publication-ready. A new single-run retrieval evaluation now covers all 20 documents on production pgvector; repeated model-based ablation and confidence intervals are still required before making comparative accuracy or latency claims.
+
+## Minor Project Summary
+
+**Problem:** Tender documents combine eligibility, financial, legal, and technical requirements, making manual review time-consuming and difficult to standardize.
+
+**Aim:** Develop a prototype that extracts key tender facts, retrieves supporting clauses, evaluates selected compliance criteria, and presents a bid/no-bid decision with traceable evidence.
+
+**Objectives:**
+- Extract tender metadata and financial requirements from PDF documents.
+- Retrieve relevant clauses from document chunks using vector search.
+- Coordinate specialized extraction, summarization, and risk-analysis agents.
+- Apply deterministic checks to selected eligibility requirements.
+- Record job progress and provide an API and web interface for results.
+- Evaluate corpus integrity and compare system configurations using reproducible artifacts.
+
+**Scope:** This is an academic prototype, not a validated procurement decision system. The checked-in corpus has 20 annotated tenders: 18 synthetic documents and 2 real documents of 116 and 128 pages. Corpus validation passed for all 20 documents, all 349 retrieval answer spans, and all annotation schemas. A single retrieval run now measures production Supabase pgvector on all 20; query-plan inspection found a representative 430-chunk query used a sequential scan, and the full benchmark did not record per-query plans; full-corpus model extraction and ablation have not been run.
+
+**Main modules:** PDF processing, embedding and retrieval, LangGraph agents, deterministic compliance and bid scoring, asynchronous job handling, and the Vite dashboard.
+
+**Project deliverables:** Source code, database migrations, API and frontend, mixed synthetic/real corpus with annotations, evaluation harness, and this project documentation. The research manuscript remains a draft pending valid repeated experiments, mentor approval, and venue-specific formatting/anonymization.
  
 ---
  
@@ -66,7 +86,9 @@ graph TD
     API -->|9. Serve Responses & Live Metrics| User
 ```
  
-The nine steps:
+The diagram shows the intended full asynchronous architecture. The current Render Free Web Service has no background worker and may run jobs inline; it is not equivalent to the full architecture above.
+
+The nine target workflow steps:
  
 | Step | Component | What happens |
 |:---:|:---|:---|
@@ -97,7 +119,7 @@ The nine steps:
 | **Hallucination protection** | None. Output is unanchored, so "lost in the middle" errors are possible | Citations checked by substring containment |
 | **Failure isolation** | A single failure breaks everything | Each agent fails on its own (Extraction, Summary, Risk, Compliance) |
  
-**Evidence status:** the archived ablation artifact `eval_results/ablation-20261002T070644Z.json` contains only five documents, reports failures for three of four configurations, and cannot substantiate a four-way comparison. The older extraction artifact is a separate run and is not a substitute for the missing ablation arms. Do not cite the historical comparison as a result.
+**Evidence status:** the archived ablation artifact `eval_results/ablation-20261002T070644Z.json` contains only five documents and cannot substantiate a four-way comparison. A new three-repeat, 20-document attempt was started after approval to send both real tenders to Gemini, but Gemini returned a daily quota error during the first arm after seven documents had scored; the remaining 13 documents failed. The incomplete attempt is recorded in `eval_results/ablation-attempt-20261022.json`. It has no complete arm or confidence intervals and is not publication-usable. Temporary database rows were removed and their absence verified. Do not cite either attempt as a comparative result.
  
 **Problem:** the issue with a single call over a dense tender is that models lose details buried in the middle of long documents, invent values, and take a long time to respond. **Solution:** TenderAI splits the job across agents. Each one gets the top-K chunks for its domain (at most 12 chunks: 3 per query, up to 5 queries), so the context is about 12k characters instead of 45k.
  
@@ -493,7 +515,7 @@ python eval_harness.py --mode retrieval --k 5 --keep
  
 ### Benchmark results
  
-All results were measured on the synthetic RFP corpus. Each run writes an artifact to `eval_results/` so it can be audited.
+Results below distinguish the historical synthetic-only runs from the current mixed-corpus retrieval run. Each run writes an artifact to `eval_results/` so it can be audited.
  
 #### 1. Historical retrieval (18 synthetic documents, 342 gold questions)
  
@@ -504,22 +526,34 @@ Artifacts: `eval_results/retrieval-20261002T065849Z.json` and `eval_results/retr
 | **Character (1000/200)** | 996 | **59.94%** | **73.39%** | **77.49%** | **85.67%** | **0.6808** | **30.58 ms** | **42.50 ms** |
 | **Structure-Aware** | 3,562 | 55.26% | 65.79% | 69.01% | 80.12% | 0.6205 | 78.88 ms | 93.20 ms |
  
-In those SQLite fallback runs, character windows scored higher than structure-aware splitting. This comparison must be rerun against the production pgvector index before being used as a production retrieval claim.
+In those SQLite fallback runs, character windows scored higher than structure-aware splitting. That two-chunker comparison still needs to be repeated against production pgvector before it can support a production claim.
  
-#### 2. Corpus integrity (smoke test)
+#### 2. Production pgvector retrieval (20 documents, 349 questions)
+
+Artifact: `eval_results/retrieval-20261022T092051Z.json`. This single retrieval pass used character windows (1,000 characters, 200 overlap), Supabase PostgreSQL and pgvector 0.8.2. The catalog had an HNSW cosine index, but the benchmark did not capture its query plans. A separate representative 430-chunk tender query chose a sequential scan and top-N sort; see `eval_results/explain-analyze-tender-filter-20261022.txt`. It indexed 1,777 chunks. The 18 synthetic documents contribute 342 questions; the two real tenders contribute 7 questions, so report the real subset cautiously.
+
+| Corpus subset | Docs | Questions | R@1 | R@3 | R@5 | R@10 | MRR@10 | Mean latency |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|
+| All documents | 20 | 349 | 59.03% | 72.21% | 76.50% | 85.10% | 0.6714 | 199.3 ms |
+| Synthetic | 18 | 342 | 59.94% | 73.39% | 77.49% | 85.67% | 0.6808 | 200.1 ms |
+| Real | 2 | 7 | 14.29% | 14.29% | 28.57% | 57.14% | 0.2123 | 158.2 ms |
+
+Overall P95 retrieval latency was 309.5 ms. The 199.3 ms mean includes the network round trip to Supabase and is not comparable to the earlier in-memory SQLite latency. This is one evaluation pass and has no repeat-based confidence interval. The real subset has only seven questions; its low Recall@5 is an early warning, not a stable estimate.
+
+#### 3. Corpus integrity (smoke test)
  
-Artifact: `eval_results/smoke-20261012T134122Z.json`
+Artifact: `eval_results/smoke-20261022T081509Z.json`
  
 | Check | Target | Result | Status |
 |:---|:---:|:---:|:---:|
-| Documents validated | 18 | 18 | ✅ PASS |
+| Documents validated | 20 | 20 | ✅ PASS |
 | Schema conformity (`corpus/schema.json`) | 100% | 0 failures | ✅ PASS |
-| Gold spans found verbatim in PDF text | 342 / 342 | 342 / 342 | ✅ PASS |
+| Gold spans found verbatim in PDF text | 349 / 349 | 349 / 349 | ✅ PASS |
 | Leakage (queries quoting the answer) | 0 | 0 | ✅ PASS |
  
-#### 3. Field extraction and ablation status
+#### 4. Field extraction and ablation status
 
-The archived extraction artifact `eval_results/extraction-20261002T070913Z.json` covers one document. The archived ablation `eval_results/ablation-20261002T070644Z.json` covers five documents: `mono-full` had two agent failures, and each other arm failed on all five documents. The old 80%/100%, token, and latency comparison is withdrawn; it is not a valid four-arm result. Run `python eval_harness.py --mode ablation --repeats 3` after configuring the database and model credentials. The resulting JSON preserves each run and reports intervals and synthetic/real metrics separately.
+The archived extraction artifact `eval_results/extraction-20261002T070913Z.json` covers one document. The archived ablation `eval_results/ablation-20261002T070644Z.json` covers five documents and is invalid as a four-arm result. A new three-repeat attempt on all 20 documents was authorized and started, but stopped in the first arm after Gemini exhausted its daily quota: only seven documents completed, while 13 failed. See `eval_results/ablation-attempt-20261022.json`. No complete arm or confidence interval was produced; the old 80%/100%, token, and latency comparison remains withdrawn. Rerun after Gemini quota resets or with an available quota/model configuration.
  
 **CI pass criterion:** Recall@5 ≥ 50%. The build fails if the retriever drops below that.
  
@@ -554,7 +588,7 @@ CompositeScore = (ComplianceScore × 0.50)
  
 ## ☁️ Cloud Deployment Options
  
-The app has a full asynchronous deployment path and a limited API-only demo path. Supabase schema migration is documented below; the Render and Firebase services still need to be created and configured. Manual creation may let an account choose Render's Free Web Service without adding a card, but this is account-dependent and does not provide a background worker.
+The app has a full asynchronous deployment path and a limited API-only demo path. Firebase and Render endpoints have been deployed, but the Render `/tenders` endpoint returned HTTP 500 and a later health request timed out; end-to-end service operation is unverified. Manual creation may let an account choose Render's Free Web Service without adding a card, but this is account-dependent and does not provide a background worker.
 
 ### Data services: Supabase and Upstash
  
@@ -588,6 +622,8 @@ The repository's Render Blueprint selects paid `starter` plans. If Render asks f
 3. Choose **Docker**. Set the Dockerfile path to `./Dockerfile.api`, health check path to `/health`, and instance type to **Free**.
 4. Add these environment variables in the service settings: `DATABASE_URL`, `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `SUPABASE_BUCKET=tenders`.
 5. If Render asks for a card even for the Free instance, stop. Do not enter payment details you do not have.
+
+The deployed API is at [https://tender-ai-9x0r.onrender.com](https://tender-ai-9x0r.onrender.com), and the Firebase frontend is at [https://tenderai-app-614.web.app](https://tenderai-app-614.web.app). On 2026-10-22, an earlier check returned HTTP 200 for Firebase and API `/health`, while API `/tenders` returned HTTP 500. A later `/health` request timed out after 90 seconds. The Render demo remains unverified end to end; the `/tenders` error is unresolved. Firebase Hosting serves the Vite production build from `frontend/dist`; run `npm run build` inside `frontend/` before deploying. The service is therefore not verified end-to-end, and file uploads or completed jobs have not been tested.
 
 For this API-only demo, **do not set** `CELERY_BROKER_URL` or `CELERY_RESULT_BACKEND`. The API then falls back to running the analysis inline when Redis is unavailable. This is not reliable for long tenders: model/embedding work may exceed request limits, and a Free Web Service can sleep and has limited memory. If a broker is configured without a worker, jobs can remain pending.
 

@@ -1,0 +1,17 @@
+{
+  "mode": "ablation",
+  "status": "incomplete_provider_quota",
+  "requested_repeats": 3,
+  "completed_repeats": 0,
+  "corpus_documents": 20,
+  "model": "gemini-3.6-flash",
+  "vector_backend": "pgvector-cosine",
+  "attempted_arm": "mono-full",
+  "arm_complete": false,
+  "documents_scored_before_quota": 7,
+  "document_failures_after_quota": 13,
+  "provider_error": "Gemini daily quota exceeded; reported retry delay was approximately 76,000 seconds.",
+  "confidence_intervals": null,
+  "publication_usable": false,
+  "note": "The first arm was interrupted after quota failures. Its success-only partial score is intentionally omitted because the first seven documents are not a complete or representative corpus sample. Temporary [ablation] database rows were removed and verified absent."
+}

@@ -9,6 +9,7 @@ GET  /tenders       → list all tenders
 GET  /health        → service health check
 """
 import os
+import threading
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -49,8 +50,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
+    # Credentials cannot be combined with origin "*"; Firebase Hosting calls this
+    # API from another origin, so wildcard + no cookies is the free-tier setup.
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -93,9 +96,95 @@ def serve_site():
 # Routes
 # ---------------------------------------------------------------------------
 
+def _use_celery() -> bool:
+    """Paid Render worker path. Free Web Service must leave USE_CELERY unset."""
+    return os.environ.get("USE_CELERY", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _run_pipeline_background(
+    job_id: int,
+    tender_id: int,
+    raw_text: str,
+    company_profile_dict=None,
+    file_bytes: bytes = None,
+    original_filename: str = None,
+) -> None:
+    try:
+        from .tasks import run_pipeline
+        run_pipeline(
+            job_id=job_id,
+            tender_id=tender_id,
+            raw_text=raw_text,
+            company_profile_dict=company_profile_dict,
+            file_bytes=file_bytes,
+            original_filename=original_filename,
+        )
+    except Exception as exc:
+        from .database import SessionLocal
+        from .tasks import _update_job_status
+        db = SessionLocal()
+        try:
+            _update_job_status(
+                db, job_id,
+                status="dead_letter",
+                error_message=str(exc),
+            )
+        finally:
+            db.close()
+
+
+def _dispatch_job(
+    db: Session,
+    db_job,
+    tender_id: int,
+    raw_text: str,
+    company_profile_dict=None,
+    file_bytes: bytes = None,
+    original_filename: str = None,
+) -> None:
+    if _use_celery():
+        try:
+            from .tasks import process_tender_job
+            celery_result = process_tender_job.delay(
+                job_id=db_job.id,
+                tender_id=tender_id,
+                raw_text=raw_text,
+                company_profile_dict=company_profile_dict,
+            )
+            db_job.celery_task_id = celery_result.id
+            db.commit()
+            return
+        except Exception as exc:
+            print(f"[Fallback] Celery enqueue failed ({exc}). Running in-process.")
+
+    worker = threading.Thread(
+        target=_run_pipeline_background,
+        kwargs={
+            "job_id": db_job.id,
+            "tender_id": tender_id,
+            "raw_text": raw_text,
+            "company_profile_dict": company_profile_dict,
+            "file_bytes": file_bytes,
+            "original_filename": original_filename,
+        },
+        daemon=True,
+    )
+    worker.start()
+
+
 @app.get("/health", status_code=status.HTTP_200_OK)
-def health_check():
-    return {"status": "healthy", "version": "1.2.0"}
+def health_check(db: Session = Depends(get_db)):
+    database = "ok"
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        database = "error"
+    return {
+        "status": "healthy",
+        "version": "1.2.0",
+        "database": database,
+        "job_runner": "celery" if _use_celery() else "inline-thread",
+    }
 
 
 @app.post(
@@ -152,27 +241,17 @@ async def upload_tender(
     db.commit()
     db.refresh(db_job)
 
-    # 5. Enqueue the Celery task — fallback to inline run_pipeline if Redis is offline
-    try:
-        from .tasks import process_tender_job
-        celery_result = process_tender_job.delay(
-            job_id=db_job.id,
-            tender_id=db_tender.id,
-            raw_text=raw_text,
-            company_profile_dict=None,  # Use default AeroCorp profile
-        )
-        db_job.celery_task_id = celery_result.id
-        db.commit()
-    except Exception as exc:
-        # Fallback to direct synchronous execution for local dev without Redis broker
-        print(f"[Fallback] Celery/Redis unavailable ({exc}). Running pipeline inline...")
-        from .tasks import run_pipeline
-        run_pipeline(
-            job_id=db_job.id,
-            tender_id=db_tender.id,
-            raw_text=raw_text,
-            company_profile_dict=None,
-        )
+    # 5. Return 202 immediately. Free-tier Render has no Celery worker, so the
+    # default path runs the pipeline in a background thread. Set USE_CELERY=true
+    # only when a worker is actually consuming the broker.
+    _dispatch_job(
+        db=db,
+        db_job=db_job,
+        tender_id=db_tender.id,
+        raw_text=raw_text,
+        file_bytes=file_bytes,
+        original_filename=file.filename,
+    )
 
     return JobEnqueuedResponse(
         job_id=db_job.id,
@@ -236,25 +315,13 @@ def analyze_tender_with_profile(
     db.commit()
     db.refresh(db_job)
 
-    try:
-        from .tasks import process_tender_job
-        celery_result = process_tender_job.delay(
-            job_id=db_job.id,
-            tender_id=db_tender.id,
-            raw_text=db_tender.raw_text,
-            company_profile_dict=company_profile.model_dump(),
-        )
-        db_job.celery_task_id = celery_result.id
-        db.commit()
-    except Exception as exc:
-        print(f"[Fallback] Celery/Redis unavailable ({exc}). Running pipeline inline...")
-        from .tasks import run_pipeline
-        run_pipeline(
-            job_id=db_job.id,
-            tender_id=db_tender.id,
-            raw_text=db_tender.raw_text,
-            company_profile_dict=company_profile.model_dump(),
-        )
+    _dispatch_job(
+        db=db,
+        db_job=db_job,
+        tender_id=db_tender.id,
+        raw_text=db_tender.raw_text,
+        company_profile_dict=company_profile.model_dump(),
+    )
 
     return JobEnqueuedResponse(
         job_id=db_job.id,

@@ -888,6 +888,8 @@
 
     <!-- Interactive Scripts -->
     <script>
+        const API_BASE = (window.TENDERAI_API_BASE || 'https://tender-ai-9x0r.onrender.com').replace(/\/$/, '');
+        let pendingLiveFile = null;
         const presets = [
             {
                 name: "Automotive AI Supply Chain RFP",
@@ -1022,41 +1024,10 @@
         }
 
         async function processUploadedFile(file) {
+            pendingLiveFile = file;
             const filenameEl = document.getElementById('drop-filename');
             if (filenameEl) {
-                filenameEl.innerHTML = `Reading: <span style="color:var(--lime-green);">${file.name}</span>`;
-            }
-
-            try {
-                const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-                let rawContent = '';
-                if (isPdf && window.pdfjsLib) {
-                    const buffer = await file.arrayBuffer();
-                    const pdf = await window.pdfjsLib.getDocument({data: buffer}).promise;
-                    const pages = [];
-                    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-                        const page = await pdf.getPage(pageNumber);
-                        const content = await page.getTextContent();
-                        const lines = [];
-                        content.items.forEach(item => {
-                            const y = item.transform && item.transform[5];
-                            const previous = lines[lines.length - 1];
-                            if (previous && y !== undefined && Math.abs(previous.y - y) < 2) {
-                                previous.text += ` ${item.str}`;
-                            } else {
-                                lines.push({y, text: item.str});
-                            }
-                        });
-                        pages.push(`--- Page ${pageNumber} ---\n${lines.map(line => line.text).join('\n')}`);
-                    }
-                    rawContent = pages.join('\n');
-                } else {
-                    rawContent = await file.text();
-                }
-                analyzeFileContent(file.name, file.size, file.type, rawContent);
-            } catch (error) {
-                console.error('PDF text extraction failed:', error);
-                analyzeFileContent(file.name, file.size, file.type, '');
+                filenameEl.innerHTML = `Ready to analyze: <span style="color:var(--lime-green);">${file.name}</span>`;
             }
         }
 

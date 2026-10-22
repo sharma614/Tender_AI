@@ -1,0 +1,404 @@
+{
+  "mode": "retrieval",
+  "documents": 20,
+  "chunks_indexed": 1777,
+  "questions": 349,
+  "top_k": 10,
+  "recall": {
+    "@1": 0.5902578796561605,
+    "@3": 0.7220630372492837,
+    "@5": 0.7650429799426934,
+    "@10": 0.8510028653295129
+  },
+  "mrr": 0.6714422158548233,
+  "latency_ms": {
+    "mean": 199.30759541600952,
+    "p50": 158.02350000012666,
+    "p95": 309.4946999917738
+  },
+  "embedding_model": "all-MiniLM-L6-v2",
+  "vector_backend": "pgvector-cosine",
+  "vector_index": {
+    "available": true,
+    "indexes": [
+      {
+        "name": "tender_chunks_pkey",
+        "definition": "CREATE UNIQUE INDEX tender_chunks_pkey ON public.tender_chunks USING btree (id)"
+      },
+      {
+        "name": "ix_tender_chunks_id",
+        "definition": "CREATE INDEX ix_tender_chunks_id ON public.tender_chunks USING btree (id)"
+      },
+      {
+        "name": "ix_tender_chunks_page_number",
+        "definition": "CREATE INDEX ix_tender_chunks_page_number ON public.tender_chunks USING btree (page_number)"
+      },
+      {
+        "name": "ix_tender_chunks_embedding_cosine",
+        "definition": "CREATE INDEX ix_tender_chunks_embedding_cosine ON public.tender_chunks USING hnsw (embedding vector_cosine_ops)"
+      }
+    ],
+    "hnsw": true,
+    "ivfflat": false
+  },
+  "chunking_strategy": "character",
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "passed": true,
+  "per_document": [
+    {
+      "doc_id": "real-gem-bob-sms-2025",
+      "chunks": 430,
+      "questions": 4,
+      "recall": {
+        "@1": 0.0,
+        "@3": 0.0,
+        "@5": 0.0,
+        "@10": 0.5
+      },
+      "mrr": 0.059027777777777776,
+      "mean_latency_ms": 160.81375000067055,
+      "missed_question_ids": [
+        1,
+        3
+      ]
+    },
+    {
+      "doc_id": "real-gem-pnb-mdm-2025",
+      "chunks": 351,
+      "questions": 3,
+      "recall": {
+        "@1": 0.3333333333333333,
+        "@3": 0.3333333333333333,
+        "@5": 0.6666666666666666,
+        "@10": 0.6666666666666666
+      },
+      "mrr": 0.4166666666666667,
+      "mean_latency_ms": 154.67219999603307,
+      "missed_question_ids": [
+        2
+      ]
+    },
+    {
+      "doc_id": "synth-001",
+      "chunks": 55,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5789473684210527,
+        "@3": 0.6842105263157895,
+        "@5": 0.7894736842105263,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.6640350877192982,
+      "mean_latency_ms": 193.22270525950253,
+      "missed_question_ids": [
+        4,
+        6,
+        12
+      ]
+    },
+    {
+      "doc_id": "synth-002",
+      "chunks": 60,
+      "questions": 19,
+      "recall": {
+        "@1": 0.47368421052631576,
+        "@3": 0.631578947368421,
+        "@5": 0.6842105263157895,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.5690058479532164,
+      "mean_latency_ms": 164.52146841727784,
+      "missed_question_ids": [
+        1,
+        10,
+        19
+      ]
+    },
+    {
+      "doc_id": "synth-003",
+      "chunks": 55,
+      "questions": 19,
+      "recall": {
+        "@1": 0.6842105263157895,
+        "@3": 0.8421052631578947,
+        "@5": 0.8421052631578947,
+        "@10": 0.8947368421052632
+      },
+      "mrr": 0.7619047619047619,
+      "mean_latency_ms": 165.69107894994025,
+      "missed_question_ids": [
+        17,
+        19
+      ]
+    },
+    {
+      "doc_id": "synth-004",
+      "chunks": 52,
+      "questions": 19,
+      "recall": {
+        "@1": 0.631578947368421,
+        "@3": 0.8421052631578947,
+        "@5": 0.8947368421052632,
+        "@10": 0.9473684210526315
+      },
+      "mrr": 0.7478070175438597,
+      "mean_latency_ms": 165.7346315761587,
+      "missed_question_ids": [
+        2
+      ]
+    },
+    {
+      "doc_id": "synth-005",
+      "chunks": 55,
+      "questions": 19,
+      "recall": {
+        "@1": 0.6842105263157895,
+        "@3": 0.7368421052631579,
+        "@5": 0.7368421052631579,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.7141812865497076,
+      "mean_latency_ms": 165.98326315809237,
+      "missed_question_ids": [
+        6,
+        9,
+        16
+      ]
+    },
+    {
+      "doc_id": "synth-006",
+      "chunks": 54,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5263157894736842,
+        "@3": 0.6842105263157895,
+        "@5": 0.6842105263157895,
+        "@10": 0.7894736842105263
+      },
+      "mrr": 0.618421052631579,
+      "mean_latency_ms": 168.0346473677721,
+      "missed_question_ids": [
+        10,
+        11,
+        15,
+        17
+      ]
+    },
+    {
+      "doc_id": "synth-007",
+      "chunks": 55,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5789473684210527,
+        "@3": 0.7368421052631579,
+        "@5": 0.8421052631578947,
+        "@10": 0.8947368421052632
+      },
+      "mrr": 0.6754385964912281,
+      "mean_latency_ms": 391.65270000414336,
+      "missed_question_ids": [
+        6,
+        15
+      ]
+    },
+    {
+      "doc_id": "synth-008",
+      "chunks": 51,
+      "questions": 19,
+      "recall": {
+        "@1": 0.7368421052631579,
+        "@3": 0.8421052631578947,
+        "@5": 0.8947368421052632,
+        "@10": 0.9473684210526315
+      },
+      "mrr": 0.8087719298245614,
+      "mean_latency_ms": 290.1472052571511,
+      "missed_question_ids": [
+        1
+      ]
+    },
+    {
+      "doc_id": "synth-009",
+      "chunks": 56,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5789473684210527,
+        "@3": 0.6842105263157895,
+        "@5": 0.6842105263157895,
+        "@10": 0.8947368421052632
+      },
+      "mrr": 0.6606516290726817,
+      "mean_latency_ms": 186.94736841931254,
+      "missed_question_ids": [
+        1,
+        5
+      ]
+    },
+    {
+      "doc_id": "synth-010",
+      "chunks": 56,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5263157894736842,
+        "@3": 0.7368421052631579,
+        "@5": 0.7894736842105263,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.6412280701754386,
+      "mean_latency_ms": 188.07166842682483,
+      "missed_question_ids": [
+        1,
+        2,
+        11
+      ]
+    },
+    {
+      "doc_id": "synth-011",
+      "chunks": 57,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5789473684210527,
+        "@3": 0.7368421052631579,
+        "@5": 0.7894736842105263,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.6697994987468672,
+      "mean_latency_ms": 187.93727895612582,
+      "missed_question_ids": [
+        2,
+        11,
+        19
+      ]
+    },
+    {
+      "doc_id": "synth-012",
+      "chunks": 56,
+      "questions": 19,
+      "recall": {
+        "@1": 0.6842105263157895,
+        "@3": 0.7894736842105263,
+        "@5": 0.8421052631578947,
+        "@10": 0.8947368421052632
+      },
+      "mrr": 0.7444444444444445,
+      "mean_latency_ms": 195.7981000029433,
+      "missed_question_ids": [
+        9,
+        17
+      ]
+    },
+    {
+      "doc_id": "synth-013",
+      "chunks": 52,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5789473684210527,
+        "@3": 0.6842105263157895,
+        "@5": 0.7368421052631579,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.6418128654970761,
+      "mean_latency_ms": 173.27897368905772,
+      "missed_question_ids": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "doc_id": "synth-014",
+      "chunks": 59,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5263157894736842,
+        "@3": 0.631578947368421,
+        "@5": 0.6842105263157895,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.6132832080200501,
+      "mean_latency_ms": 166.55057367844213,
+      "missed_question_ids": [
+        1,
+        13,
+        15
+      ]
+    },
+    {
+      "doc_id": "synth-015",
+      "chunks": 58,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5789473684210527,
+        "@3": 0.6842105263157895,
+        "@5": 0.6842105263157895,
+        "@10": 0.7894736842105263
+      },
+      "mrr": 0.6443609022556391,
+      "mean_latency_ms": 201.50733158286465,
+      "missed_question_ids": [
+        2,
+        8,
+        13,
+        15
+      ]
+    },
+    {
+      "doc_id": "synth-016",
+      "chunks": 53,
+      "questions": 19,
+      "recall": {
+        "@1": 0.5263157894736842,
+        "@3": 0.7368421052631579,
+        "@5": 0.7368421052631579,
+        "@10": 0.7368421052631579
+      },
+      "mrr": 0.631578947368421,
+      "mean_latency_ms": 239.84540000827494,
+      "missed_question_ids": [
+        1,
+        4,
+        9,
+        10,
+        19
+      ]
+    },
+    {
+      "doc_id": "synth-017",
+      "chunks": 58,
+      "questions": 19,
+      "recall": {
+        "@1": 0.631578947368421,
+        "@3": 0.7894736842105263,
+        "@5": 0.8421052631578947,
+        "@10": 0.8947368421052632
+      },
+      "mrr": 0.7207602339181286,
+      "mean_latency_ms": 186.82773683930895,
+      "missed_question_ids": [
+        2,
+        12
+      ]
+    },
+    {
+      "doc_id": "synth-018",
+      "chunks": 54,
+      "questions": 19,
+      "recall": {
+        "@1": 0.6842105263157895,
+        "@3": 0.7368421052631579,
+        "@5": 0.7894736842105263,
+        "@10": 0.8421052631578947
+      },
+      "mrr": 0.7276315789473684,
+      "mean_latency_ms": 170.93624736451986,
+      "missed_question_ids": [
+        10,
+        13,
+        16
+      ]
+    }
+  ],
+  "elapsed_seconds": 336.625,
+  "timestamp_utc": "2026-10-22T09:20:51.656721+00:00"
+}

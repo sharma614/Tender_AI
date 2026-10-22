@@ -1,0 +1,28 @@
+Production Supabase pgvector query plan
+Captured: 2026-10-22
+Query shape: same filtered cosine-distance ORDER BY / LIMIT query used by app/services/retriever.py
+Representative tender: temporary evaluation tender with 430 chunks (tender_id 42 at capture time)
+The query vector was an actual stored 384-dimensional corpus vector. This representative EXPLAIN does not establish the plan for every query in the earlier retrieval benchmark.
+
+SELECT id
+FROM tender_chunks
+WHERE tender_id = :tender_id AND embedding IS NOT NULL
+ORDER BY embedding <=> CAST(:query_vector AS vector)
+LIMIT 10;
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT), with the long vector literal in the Sort Key omitted:
+
+Limit  (cost=67.74..67.77 rows=10 width=12) (actual time=1.594..1.596 rows=10 loops=1)
+  Buffers: shared hit=1318
+  ->  Sort  (cost=67.74..68.82 rows=430 width=12) (actual time=1.592..1.594 rows=10 loops=1)
+        Sort Method: top-N heapsort  Memory: 25kB
+        Buffers: shared hit=1318
+        ->  Seq Scan on tender_chunks  (cost=0.00..58.45 rows=430 width=12) (actual time=0.028..1.459 rows=430 loops=1)
+              Filter: ((embedding IS NOT NULL) AND (tender_id = 42))
+              Buffers: shared hit=1315
+Planning:
+  Buffers: shared hit=18
+Planning Time: 0.140 ms
+Execution Time: 1.665 ms
+
+Conclusion: PostgreSQL chose a sequential scan and top-N sort for this 430-row tender-filtered query. HNSW was not used for this representative query. The original 349-question retrieval run did not capture per-query plans, so its planner choices cannot be asserted from its result artifact. Temporary [eval] rows were removed after capture.

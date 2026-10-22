@@ -15,6 +15,7 @@ TenderAI_Research_Paper.md
 # Environment files — never commit real secrets
 .env
 !.env.example
+.env.local
 *.tfvars
 !*.tfvars.example
 
@@ -40,6 +41,7 @@ frontend/.vercel/
 junit/
 .pytest_cache/
 .firebase/
+.vercel/
 
 # Local benchmark and scratch artifacts
 SESSION_BENCHMARK_AND_CHANGES.md
