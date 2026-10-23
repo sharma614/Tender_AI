@@ -1,0 +1,54 @@
+{
+  "doc_id": "real-pnb-cts-scanners-2017",
+  "pdf": "pdfs/real-pnb-cts-scanners-2017.pdf",
+  "source": "real",
+  "page_count": 39,
+  "notes": "Public Punjab National Bank RFP for cheque imaging scanners for the Cheque Truncation System. Retrieved 2026-10-23 from https://www.pnbindia.in/ViewTenderEauction.aspx?fileid=nj%2F7OIjGGxoe9%2BGLvDgauw%3D%3D&tenid=mELirpUhRYksFj7k8%2FXBcQ%3D%3D&type=Tender. The document schedule dates the procurement to April 2017; treat it as an archived real tender, not a current opportunity. EMD varies by grid selection, so no single EMD value is recorded in fields.",
+  "fields": {
+    "tender_title": "Supply, Installation, Configuration, Testing, Commissioning and Maintenance of Cheque Imaging Scanners for Cheque Truncation System",
+    "submission_deadline": "26 April 2017 at 14:00 HRS",
+    "minimum_turnover": {
+      "value": 50000000,
+      "currency": "INR",
+      "raw": "Rs. 5 crores each during the last two financial year 2014-15 and 2015-16"
+    },
+    "earnest_money_deposit_emd": null
+  },
+  "questions": [
+    {
+      "id": 1,
+      "query": "What equipment and service is PNB seeking in this procurement?",
+      "gold_span": "Request for Proposal for Supply, Installation, Configuration, Testing, Commissioning and Maintenance of Cheque imaging scanners for Cheque Truncation System.",
+      "gold_page": 2,
+      "field": "title"
+    },
+    {
+      "id": 2,
+      "query": "When was the online bid submission due according to the bid schedule?",
+      "gold_span": "Last date and time for online Bid submission 26.04.2017 till 1400 HRS",
+      "gold_page": 2,
+      "field": "submission_deadline"
+    },
+    {
+      "id": 3,
+      "query": "What bid security amount applies to each combination of CTS grids?",
+      "gold_span": "A) Northern and Southern Grids - Rs.4,00,000/- (Rs. Four Lakhs only) B) Western Grid only- Rs.1,00,000/- (Rs. One Lakh only) C) Northern, Southern and Western Grids - Rs.5,00,000/- (Rs. Five Lakhs only)",
+      "gold_page": 8,
+      "field": "earnest_money_deposit_emd"
+    },
+    {
+      "id": 4,
+      "query": "What annual turnover did the bidder need to show for the two specified financial years?",
+      "gold_span": "The bidder should have minimum annual turnover of Rs. 5 crores each during the last two financial year 2014-15 and 2015-16.",
+      "gold_page": 19,
+      "field": "minimum_turnover"
+    },
+    {
+      "id": 5,
+      "query": "For how long must the supplier support the scanners with spare parts after installation?",
+      "gold_span": "Bidder should undertake to provide maintenance support to equipment and arrange for spare parts for a minimum period of Five years from the date of installation.",
+      "gold_page": 5,
+      "field": null
+    }
+  ]
+}

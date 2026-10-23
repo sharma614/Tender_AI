@@ -1,0 +1,99 @@
+{
+  "mode": "retrieval",
+  "documents": 4,
+  "chunks_indexed": 1305,
+  "questions": 17,
+  "top_k": 10,
+  "recall": {
+    "@1": 0.11764705882352941,
+    "@3": 0.35294117647058826,
+    "@5": 0.4117647058823529,
+    "@10": 0.6470588235294118
+  },
+  "mrr": 0.26248832866479926,
+  "latency_ms": {
+    "mean": 125.87844117832206,
+    "p50": 147.88460003910586,
+    "p95": 168.78920001909137
+  },
+  "embedding_model": "all-MiniLM-L6-v2",
+  "vector_backend": "sqlite-bruteforce-cosine (HNSW index NOT exercised)",
+  "vector_index": {
+    "available": false,
+    "indexes": []
+  },
+  "chunking_strategy": "character",
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "passed": false,
+  "per_document": [
+    {
+      "doc_id": "real-gem-bob-sms-2025",
+      "chunks": 430,
+      "questions": 4,
+      "recall": {
+        "@1": 0.0,
+        "@3": 0.0,
+        "@5": 0.0,
+        "@10": 0.5
+      },
+      "mrr": 0.059027777777777776,
+      "mean_latency_ms": 170.8220000145957,
+      "missed_question_ids": [
+        1,
+        3
+      ]
+    },
+    {
+      "doc_id": "real-gem-pnb-mdm-2025",
+      "chunks": 351,
+      "questions": 3,
+      "recall": {
+        "@1": 0.3333333333333333,
+        "@3": 0.3333333333333333,
+        "@5": 0.6666666666666666,
+        "@10": 0.6666666666666666
+      },
+      "mrr": 0.4166666666666667,
+      "mean_latency_ms": 146.57820002563918,
+      "missed_question_ids": [
+        2
+      ]
+    },
+    {
+      "doc_id": "real-pnb-cts-scanners-2017",
+      "chunks": 107,
+      "questions": 5,
+      "recall": {
+        "@1": 0.0,
+        "@3": 0.6,
+        "@5": 0.6,
+        "@10": 0.8
+      },
+      "mrr": 0.29523809523809524,
+      "mean_latency_ms": 48.47541997442022,
+      "missed_question_ids": [
+        3
+      ]
+    },
+    {
+      "doc_id": "real-sbi-servers-2025",
+      "chunks": 417,
+      "questions": 5,
+      "recall": {
+        "@1": 0.2,
+        "@3": 0.4,
+        "@5": 0.4,
+        "@10": 0.6
+      },
+      "mrr": 0.3,
+      "mean_latency_ms": 154.9067600048147,
+      "missed_question_ids": [
+        1,
+        4
+      ]
+    }
+  ],
+  "elapsed_seconds": 177.826,
+  "timestamp_utc": "2026-10-23T16:02:38.254321+00:00"
+}

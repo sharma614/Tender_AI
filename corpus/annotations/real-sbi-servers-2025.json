@@ -1,0 +1,54 @@
+{
+  "doc_id": "real-sbi-servers-2025",
+  "pdf": "pdfs/real-sbi-servers-2025.pdf",
+  "source": "real",
+  "page_count": 155,
+  "notes": "Public State Bank of India global tender RFP IT Cloud Solutions/FY:2024-25/RFP/1310, dated 2025-03-31. Retrieved 2026-10-23 from https://sbi.co.in/documents/39129/51516783/NOTICE%2BINVITING%2BTENDER20250329124027768.pdf. This is an archived procurement; its original submission deadline has passed.",
+  "fields": {
+    "tender_title": "Procurement, Installation, Commissioning and Maintenance of Servers",
+    "submission_deadline": "30 April 2025 at 17:00",
+    "earnest_money_deposit_emd": {
+      "value": 200000000,
+      "currency": "INR",
+      "raw": "Rs. 2.00 Crore"
+    },
+    "warranty_years": 5
+  },
+  "questions": [
+    {
+      "id": 1,
+      "query": "What server-related procurement is SBI inviting bids for?",
+      "gold_span": "REQUEST FOR PROPOSAL (GLOBAL TENDER) FOR PROCUREMENT, INSTALLATION, COMMISSIONING AND MAINTENANCE OF SERVERS",
+      "gold_page": 1,
+      "field": "title"
+    },
+    {
+      "id": 2,
+      "query": "What was the final date and time for bidders to submit their offers?",
+      "gold_span": "Last date and time for Bid submission Up to 17:00 on 30/04/2025",
+      "gold_page": 3,
+      "field": "submission_deadline"
+    },
+    {
+      "id": 3,
+      "query": "What earnest money deposit was required for this tender?",
+      "gold_span": "Earnest Money Deposit Rs. 2.00 Crore",
+      "gold_page": 4,
+      "field": "earnest_money_deposit_emd"
+    },
+    {
+      "id": 4,
+      "query": "How long is the included hardware warranty, and what maintenance follows it?",
+      "gold_span": "Supply, installation, testing, commissioning, and maintenance of computer hardware (Servers) along with peripherals/software components, with warranty period for first 5 years and further 2 years AMC.",
+      "gold_page": 79,
+      "field": "warranty_years"
+    },
+    {
+      "id": 5,
+      "query": "How many servers are included in the described deliverables?",
+      "gold_span": "Total 2395 servers, associated racks and other peripherals like network cables (including copper and fibre cable), PDUs etc. with first five years warranty and further two years AMC.",
+      "gold_page": 80,
+      "field": null
+    }
+  ]
+}

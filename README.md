@@ -15,7 +15,7 @@
  
 **TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph** and use **RAG over pgvector**; compliance checks run in Python. The repository includes deployment configurations for Render, Supabase, Upstash, Firebase Hosting, and AWS. Firebase Hosting at [tenderai-app-614.web.app](https://tenderai-app-614.web.app) and the Render API `/health` endpoint had returned HTTP 200 in an earlier check on 2026-10-22 (API version `1.2.0`); a later `/health` check timed out after 90 seconds, while `/tenders` had returned HTTP 500. The Render demo is unverified end to end.
  
-Historical ablation numbers in this repository are exploratory and are not publication-ready. A new single-run retrieval evaluation now covers all 20 documents on production pgvector; repeated model-based ablation and confidence intervals are still required before making comparative accuracy or latency claims.
+Historical ablation numbers in this repository are exploratory and are not publication-ready. The recorded production pgvector retrieval run covers the 20-document corpus as it stood on 2026-10-22. The current corpus has 22 documents, including 4 real tenders; a real-only local SQLite retrieval run now covers all 17 real questions. Rerun retrieval on production pgvector before reporting updated production performance. Repeated model-based ablation and confidence intervals are still required before making comparative accuracy or latency claims.
 
 ## Minor Project Summary
 
@@ -31,7 +31,7 @@ Historical ablation numbers in this repository are exploratory and are not publi
 - Record job progress and provide an API and web interface for results.
 - Evaluate corpus integrity and compare system configurations using reproducible artifacts.
 
-**Scope:** This is an academic prototype, not a validated procurement decision system. The checked-in corpus has 20 annotated tenders: 18 synthetic documents and 2 real documents of 116 and 128 pages. Corpus validation passed for all 20 documents, all 349 retrieval answer spans, and all annotation schemas. A single retrieval run now measures production Supabase pgvector on all 20; query-plan inspection found a representative 430-chunk query used a sequential scan, and the full benchmark did not record per-query plans; full-corpus model extraction and ablation have not been run.
+**Scope:** This is an academic prototype, not a validated procurement decision system. The corpus currently has 22 annotated tenders: 18 synthetic and 4 real documents (39, 116, 128, and 155 pages). Corpus validation passed for all 22 documents and all 359 retrieval answer spans. The archived production Supabase pgvector retrieval run covers the previous 20-document corpus; query-plan inspection found a representative 430-chunk query used a sequential scan, and the full benchmark did not record per-query plans. The newer real documents are an archived 2017 Punjab National Bank RFP and a 2025 State Bank of India RFP. Full-corpus model extraction and ablation have not been run.
 
 **Main modules:** PDF processing, embedding and retrieval, LangGraph agents, deterministic compliance and bid scoring, asynchronous job handling, and the Vite dashboard.
 
@@ -528,9 +528,9 @@ Artifacts: `eval_results/retrieval-20261002T065849Z.json` and `eval_results/retr
  
 In those SQLite fallback runs, character windows scored higher than structure-aware splitting. That two-chunker comparison still needs to be repeated against production pgvector before it can support a production claim.
  
-#### 2. Production pgvector retrieval (20 documents, 349 questions)
+#### 2. Production pgvector retrieval (historical corpus snapshot: 20 documents, 349 questions)
 
-Artifact: `eval_results/retrieval-20261022T092051Z.json`. This single retrieval pass used character windows (1,000 characters, 200 overlap), Supabase PostgreSQL and pgvector 0.8.2. The catalog had an HNSW cosine index, but the benchmark did not capture its query plans. A separate representative 430-chunk tender query chose a sequential scan and top-N sort; see `eval_results/explain-analyze-tender-filter-20261022.txt`. It indexed 1,777 chunks. The 18 synthetic documents contribute 342 questions; the two real tenders contribute 7 questions, so report the real subset cautiously.
+Artifact: `eval_results/retrieval-20261022T092051Z.json`. This single retrieval pass used character windows (1,000 characters, 200 overlap), Supabase PostgreSQL and pgvector 0.8.2, before the 2017 PNB tender was added. The catalog had an HNSW cosine index, but the benchmark did not capture its query plans. A separate representative 430-chunk tender query chose a sequential scan and top-N sort; see `eval_results/explain-analyze-tender-filter-20261022.txt`. It indexed 1,777 chunks. The 18 synthetic documents contribute 342 questions; the two real tenders contribute 7 questions. These are historical snapshot results, not results on the current corpus.
 
 | Corpus subset | Docs | Questions | R@1 | R@3 | R@5 | R@10 | MRR@10 | Mean latency |
 |:---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -538,9 +538,35 @@ Artifact: `eval_results/retrieval-20261022T092051Z.json`. This single retrieval 
 | Synthetic | 18 | 342 | 59.94% | 73.39% | 77.49% | 85.67% | 0.6808 | 200.1 ms |
 | Real | 2 | 7 | 14.29% | 14.29% | 28.57% | 57.14% | 0.2123 | 158.2 ms |
 
-Overall P95 retrieval latency was 309.5 ms. The 199.3 ms mean includes the network round trip to Supabase and is not comparable to the earlier in-memory SQLite latency. This is one evaluation pass and has no repeat-based confidence interval. The real subset has only seven questions; its low Recall@5 is an early warning, not a stable estimate.
+Overall P95 retrieval latency was 309.5 ms. The 199.3 ms mean includes the network round trip to Supabase and is not comparable to the earlier in-memory SQLite latency. This is one evaluation pass and has no repeat-based confidence interval. The real subset in this snapshot has only seven questions; its low Recall@5 is an early warning, not a stable estimate. The current four-tender real subset has been measured separately on local SQLite below.
 
-#### 3. Corpus integrity (smoke test)
+#### 3. Expanded corpus retrieval snapshot before the 2025 SBI tender (local SQLite)
+
+Artifact: `eval_results/retrieval-20261023T155531Z.json`. This single run evaluated the 21-document, 354-question corpus before the 2025 SBI tender was added, using character chunks (1,000 characters, 200 overlap) and the SQLite brute-force cosine fallback. It did not exercise pgvector or HNSW and its latency is not comparable with the production run above.
+
+| Corpus subset | Docs | Questions | R@1 | R@3 | R@5 | R@10 | MRR@10 |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| All documents | 21 | 354 | 58.19% | 72.03% | 76.27% | 85.03% | 0.6661 |
+| Synthetic | 18 | 342 | 59.94% | 73.39% | 77.49% | 85.67% | 0.6808 |
+| Real | 3 | 12 | 8.33% | 33.33% | 41.67% | 66.67% | 0.2469 |
+
+The real-tender row is a historical preliminary result over 12 questions; the SBI RFP was added afterward.
+
+#### 4. Current real-tender retrieval (local SQLite)
+
+Artifact: `eval_results/retrieval-20261023T160238Z.json`. This run covers the four current real tenders and all 17 real questions using the local SQLite brute-force cosine backend; it did not exercise pgvector or HNSW.
+
+| Real subset | Docs | Questions | R@1 | R@3 | R@5 | R@10 | MRR@10 |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Real | 4 | 17 | 11.76% | 35.29% | 41.18% | 64.71% | 0.2620 |
+
+This is one exploratory run. Recall@5 is 7/17, so it is still a small sample and should not be presented as statistically conclusive. A production pgvector run and repeated evaluation remain outstanding.
+
+#### 5. Current corpus integrity (smoke test)
+
+Artifact: `eval_results/smoke-20261023T155935Z.json`. This validation covers the current 22-document corpus (18 synthetic and 4 real), with 359 answer spans. All annotations conform to the schema, all spans were found in their PDFs, and no query quotes its answer. This checks corpus integrity, not retrieval quality.
+
+The earlier smoke artifacts remain `eval_results/smoke-20261023T154941Z.json` (21 documents) and `eval_results/smoke-20261022T081509Z.json` (20 documents).
  
 Artifact: `eval_results/smoke-20261022T081509Z.json`
  
@@ -551,7 +577,7 @@ Artifact: `eval_results/smoke-20261022T081509Z.json`
 | Gold spans found verbatim in PDF text | 349 / 349 | 349 / 349 | ✅ PASS |
 | Leakage (queries quoting the answer) | 0 | 0 | ✅ PASS |
  
-#### 4. Field extraction and ablation status
+#### 6. Field extraction and ablation status
 
 The archived extraction artifact `eval_results/extraction-20261002T070913Z.json` covers one document. The archived ablation `eval_results/ablation-20261002T070644Z.json` covers five documents and is invalid as a four-arm result. A new three-repeat attempt on all 20 documents was authorized and started, but stopped in the first arm after Gemini exhausted its daily quota: only seven documents completed, while 13 failed. See `eval_results/ablation-attempt-20261022.json`. No complete arm or confidence interval was produced; the old 80%/100%, token, and latency comparison remains withdrawn. Rerun after Gemini quota resets or with an available quota/model configuration.
  
