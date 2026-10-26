@@ -691,6 +691,15 @@
                         <span style="font-size: 12px; color: var(--lime-green);">PDF / Company Profile</span>
                     </h3>
 
+                    <div style="margin:0 0 14px;padding:12px 14px;border:1px solid var(--border-subtle);border-radius:12px;background:rgba(255,255,255,.025);">
+                        <label for="company-history-file" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;color:var(--text-primary);font-weight:600;">
+                            <span>Upload company history / training data</span>
+                            <span style="color:var(--lime-green);font-size:12px;white-space:nowrap;">Choose JSON or CSV</span>
+                        </label>
+                        <input type="file" id="company-history-file" accept=".json,.csv,application/json,text/csv" style="display:block;width:100%;margin-top:10px;color:var(--text-secondary);font-size:12px;">
+                        <div id="company-history-status" role="status" style="margin-top:6px;color:var(--text-dim);font-size:12px;">No company history file selected. Profile data is saved in this browser and sent with tender analysis.</div>
+                    </div>
+
                     <div class="drop-area" id="drop-area">
                         <div style="font-size: 32px; margin-bottom: 8px;">📑</div>
                         <div style="font-weight: 600; margin-bottom: 4px;" id="drop-filename">Click or Drop RFP PDF</div>
@@ -930,6 +939,92 @@
             catch (_) { return null; }
         }
 
+        function parseCompanyHistoryCsv(text) {
+            const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim());
+            if (lines.length < 2) throw new Error('CSV needs a header row and at least one history record.');
+            const cells = line => {
+                const values = []; let value = ''; let quoted = false;
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"' && line[i + 1] === '"' && quoted) { value += '"'; i++; }
+                    else if (char === '"') quoted = !quoted;
+                    else if (char === ',' && !quoted) { values.push(value.trim()); value = ''; }
+                    else value += char;
+                }
+                values.push(value.trim()); return values;
+            };
+            const headers = cells(lines.shift()).map(value => value.toLowerCase());
+            for (const required of ['year', 'title', 'revenue']) {
+                if (!headers.includes(required)) throw new Error(`CSV is missing required column: ${required}`);
+            }
+            return lines.map(line => {
+                const values = cells(line);
+                return Object.fromEntries(headers.map((header, index) => [header, values[index] || '']));
+            });
+        }
+
+        async function importCompanyHistory(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const status = document.getElementById('company-history-status');
+            try {
+                const text = await file.text();
+                let imported;
+                if (file.name.toLowerCase().endsWith('.json')) imported = JSON.parse(text);
+                else {
+                    const rows = parseCompanyHistoryCsv(text);
+                    const first = rows[0];
+                    imported = {
+                        company_name: first.company_name || 'Demo Company',
+                        turnover_currency: first.turnover_currency || 'USD',
+                        technical_capabilities: String(first.capabilities || '').split(/[;|]/).map(value => value.trim()).filter(Boolean),
+                        history: rows.map(row => ({
+                            year: Number(row.year), title: String(row.title || '').trim(),
+                            revenue: Number(String(row.revenue || '').replace(/[$,]/g, ''))
+                        }))
+                    };
+                }
+                const records = imported && (imported.history || imported.company_history);
+                if (!Array.isArray(records) || records.length === 0) throw new Error('File must contain a non-empty history array.');
+                for (const [index, record] of records.entries()) {
+                    if (!Number(record.year) || !String(record.title || '').trim() || !Number.isFinite(Number(record.revenue)) || Number(record.revenue) < 0) {
+                        throw new Error(`History record ${index + 1} needs a year, title, and non-negative numeric revenue.`);
+                    }
+                }
+                const normalized = records.map(record => ({ year: Number(record.year), title: String(record.title).trim(), revenue: Number(record.revenue) }));
+                const latestYear = Math.max(...normalized.map(record => record.year));
+                const profile = {
+                    ...imported,
+                    profile_type: imported.profile_type || 'user_supplied_company_history',
+                    company_name: String(imported.company_name || 'Demo Company'),
+                    turnover_currency: imported.turnover_currency || 'USD',
+                    technical_capabilities: Array.isArray(imported.technical_capabilities) ? imported.technical_capabilities : [],
+                    annual_turnover: Number(imported.annual_turnover) || normalized.filter(record => record.year === latestYear).reduce((sum, record) => sum + record.revenue, 0),
+                    years_of_experience: Number(imported.years_of_experience) || Math.max(0, new Date().getFullYear() - Math.min(...normalized.map(record => record.year))),
+                    has_solvency_certificate: Boolean(imported.has_solvency_certificate),
+                    history: normalized,
+                    company_history: normalized,
+                    usage: 'Analysis-time context only; not model-training data.'
+                };
+                localStorage.setItem(COMPANY_PROFILE_KEY, JSON.stringify(profile));
+                status.textContent = `Loaded ${normalized.length} records for ${profile.company_name}. Saved in this browser; it will be sent with the next tender analysis.`;
+                status.style.color = 'var(--lime-green)';
+            } catch (error) {
+                status.textContent = `Could not load company history: ${error.message}`;
+                status.style.color = 'var(--warning)';
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        document.getElementById('company-history-file').addEventListener('change', importCompanyHistory);
+        const savedCompanyProfile = getCompanyProfile();
+        if (savedCompanyProfile) {
+            const profileStatus = document.getElementById('company-history-status');
+            profileStatus.textContent = `Saved profile loaded: ${savedCompanyProfile.company_name || 'Company'} (${(savedCompanyProfile.history || savedCompanyProfile.company_history || []).length} history records).`;
+            profileStatus.style.color = 'var(--lime-green)';
+        }
+
         function renderOutput() {
             const out = document.getElementById('out-content');
             if (!out) return;
@@ -1167,7 +1262,10 @@
                     let healthResponse;
                     let healthBody;
                     let lastHealthError;
-                    for (let attempt = 1; attempt <= 4; attempt++) {
+                    // A free Render service can take over a minute to wake from
+                    // sleep. Keep retrying long enough for that cold start.
+                    const maxHealthAttempts = 16;
+                    for (let attempt = 1; attempt <= maxHealthAttempts; attempt++) {
                         try {
                             healthResponse = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
                             if (!healthResponse.ok) throw new Error(`Health endpoint returned HTTP ${healthResponse.status}`);
@@ -1176,8 +1274,8 @@
                             break;
                         } catch (error) {
                             lastHealthError = error;
-                            if (attempt === 4) break;
-                            out.textContent = `Render is waking or reconnecting. Retrying health check (${attempt}/3)…`;
+                            if (attempt === maxHealthAttempts) break;
+                            out.textContent = `Render is waking or reconnecting. Retrying health check (${attempt}/${maxHealthAttempts - 1})…`;
                             await new Promise(resolve => setTimeout(resolve, 5000));
                         }
                     }
