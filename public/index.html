@@ -1164,9 +1164,24 @@
                 let requestStage = 'Render API health check';
                 out.textContent = 'Checking and waking the Render API…';
                 try {
-                    const healthResponse = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
-                    const healthBody = await healthResponse.json();
-                    if (!healthResponse.ok) throw new Error(`Health endpoint returned HTTP ${healthResponse.status}`);
+                    let healthResponse;
+                    let healthBody;
+                    let lastHealthError;
+                    for (let attempt = 1; attempt <= 4; attempt++) {
+                        try {
+                            healthResponse = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
+                            if (!healthResponse.ok) throw new Error(`Health endpoint returned HTTP ${healthResponse.status}`);
+                            healthBody = await healthResponse.json();
+                            lastHealthError = null;
+                            break;
+                        } catch (error) {
+                            lastHealthError = error;
+                            if (attempt === 4) break;
+                            out.textContent = `Render is waking or reconnecting. Retrying health check (${attempt}/3)…`;
+                            await new Promise(resolve => setTimeout(resolve, 5000));
+                        }
+                    }
+                    if (lastHealthError) throw lastHealthError;
                     if (healthBody.database !== 'ok') throw new Error(`API is reachable, but its database reports "${healthBody.database}".`);
 
                     requestStage = 'tender upload';
