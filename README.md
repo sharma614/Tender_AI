@@ -13,9 +13,9 @@
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
  
-**TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph** and use **RAG over pgvector**; compliance checks run in Python. The repository includes deployment configurations for Render, Supabase, Upstash, Firebase Hosting, and AWS. Firebase Hosting at [tenderai-app-614.web.app](https://tenderai-app-614.web.app) and the Render API `/health` endpoint had returned HTTP 200 in an earlier check on 2026-10-22 (API version `1.2.0`); a later `/health` check timed out after 90 seconds, while `/tenders` had returned HTTP 500. The Render demo is unverified end to end.
+**TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph** and use **RAG over pgvector**; compliance checks run in Python. The repository includes deployment configurations for Render, Supabase, Upstash, and Firebase Hosting. The Firebase site is a static marketing and demo frontend; live PDF analysis depends on the FastAPI service and its database configuration. Company profile history is passed to analysis as run-time context, not used to fine-tune model weights.
  
-Historical ablation numbers in this repository are exploratory and are not publication-ready. The recorded production pgvector retrieval run covers the 20-document corpus as it stood on 2026-10-22. The current corpus has 22 documents, including 4 real tenders; a real-only local SQLite retrieval run now covers all 17 real questions. Rerun retrieval on production pgvector before reporting updated production performance. Repeated model-based ablation and confidence intervals are still required before making comparative accuracy or latency claims.
+Historical ablation numbers in this repository are exploratory and are not publication-ready. The recorded production pgvector retrieval run covers the 20-document corpus as it stood on 2026-10-22. The current corpus has 24 documents, including 6 real tenders; corpus smoke validation covers 366 annotated retrieval answer spans. Rerun retrieval on production pgvector before reporting updated production performance. Repeated model-based ablation and confidence intervals are still required before making comparative accuracy or latency claims.
 
 ## Minor Project Summary
 
@@ -31,7 +31,7 @@ Historical ablation numbers in this repository are exploratory and are not publi
 - Record job progress and provide an API and web interface for results.
 - Evaluate corpus integrity and compare system configurations using reproducible artifacts.
 
-**Scope:** This is an academic prototype, not a validated procurement decision system. The corpus currently has 22 annotated tenders: 18 synthetic and 4 real documents (39, 116, 128, and 155 pages). Corpus validation passed for all 22 documents and all 359 retrieval answer spans. The archived production Supabase pgvector retrieval run covers the previous 20-document corpus; query-plan inspection found a representative 430-chunk query used a sequential scan, and the full benchmark did not record per-query plans. The newer real documents are an archived 2017 Punjab National Bank RFP and a 2025 State Bank of India RFP. Full-corpus model extraction and ablation have not been run.
+**Scope:** This is an academic prototype, not a validated procurement decision system. The corpus currently has 24 annotated tenders: 18 synthetic and 6 real documents (39, 71, 89, 116, 128, and 155 pages). Corpus validation passed for all 24 documents and all 366 retrieval answer spans. The archived production Supabase pgvector retrieval run covers the previous 20-document corpus; query-plan inspection found a representative 430-chunk query used a sequential scan, and the full benchmark did not record per-query plans. The added real documents are a Punjab State Helpline tender and the final post-pre-bid Rajasthan IT manpower RFP. Full-corpus model extraction and ablation have not been run.
 
 **Main modules:** PDF processing, embedding and retrieval, LangGraph agents, deterministic compliance and bid scoring, asynchronous job handling, and the Vite dashboard.
 
@@ -564,7 +564,7 @@ This is one exploratory run. Recall@5 is 7/17, so it is still a small sample and
 
 #### 5. Current corpus integrity (smoke test)
 
-Artifact: `eval_results/smoke-20261023T155935Z.json`. This validation covers the current 22-document corpus (18 synthetic and 4 real), with 359 answer spans. All annotations conform to the schema, all spans were found in their PDFs, and no query quotes its answer. This checks corpus integrity, not retrieval quality.
+Artifact: `eval_results/smoke-20261026T142812Z.json`. This validation covers the current 24-document corpus (18 synthetic and 6 real), with 366 answer spans. All annotations conform to the schema, all spans were found in their PDFs, and no query quotes its answer. This checks corpus integrity, not retrieval quality.
 
 The earlier smoke artifacts remain `eval_results/smoke-20261023T154941Z.json` (21 documents) and `eval_results/smoke-20261022T081509Z.json` (20 documents).
  
@@ -614,7 +614,7 @@ CompositeScore = (ComplianceScore × 0.50)
  
 ## ☁️ Cloud Deployment Options
  
-The app has a full asynchronous deployment path and a limited API-only demo path. Firebase and Render endpoints have been deployed, but the Render `/tenders` endpoint returned HTTP 500 and a later health request timed out; end-to-end service operation is unverified. Manual creation may let an account choose Render's Free Web Service without adding a card, but this is account-dependent and does not provide a background worker.
+The app supports an API-only demo path on Render and static hosting on Firebase. The Firebase marketing site and profile builder are static assets; live PDF analysis requires the API, PostgreSQL database, and model-provider credentials to be available. Render free instances may sleep and do not provide a separate background worker.
 
 ### Data services: Supabase and Upstash
  
@@ -649,7 +649,7 @@ The repository's Render Blueprint selects paid `starter` plans. If Render asks f
 4. Add these environment variables in the service settings: `DATABASE_URL`, `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `SUPABASE_BUCKET=tenders`.
 5. If Render asks for a card even for the Free instance, stop. Do not enter payment details you do not have.
 
-The deployed API is at [https://tender-ai-9x0r.onrender.com](https://tender-ai-9x0r.onrender.com), and the Firebase frontend is at [https://tenderai-app-614.web.app](https://tenderai-app-614.web.app). On 2026-10-22, an earlier check returned HTTP 200 for Firebase and API `/health`, while API `/tenders` returned HTTP 500. A later `/health` request timed out after 90 seconds. The Render demo remains unverified end to end; the `/tenders` error is unresolved. Firebase Hosting serves the Vite production build from `frontend/dist`; run `npm run build` inside `frontend/` before deploying. The service is therefore not verified end-to-end, and file uploads or completed jobs have not been tested.
+The deployed API is at [https://tender-ai-9x0r.onrender.com](https://tender-ai-9x0r.onrender.com), and the Firebase frontend is at [https://tenderai-app-614.web.app](https://tenderai-app-614.web.app). The local database URL was confirmed to connect during development. Configure the same secret as `DATABASE_URL` in the Render service settings and redeploy before testing live uploads. Do not paste it into Git or chat. Firebase Hosting serves the branded static site from `public/`; no Vite build is required for that site. A live tender upload requires the Render database and API to be available.
 
 For this API-only demo, **do not set** `CELERY_BROKER_URL` or `CELERY_RESULT_BACKEND`. The API then falls back to running the analysis inline when Redis is unavailable. This is not reliable for long tenders: model/embedding work may exceed request limits, and a Free Web Service can sleep and has limited memory. If a broker is configured without a worker, jobs can remain pending.
 
@@ -672,26 +672,15 @@ alembic upgrade head
 Avoid running migrations automatically on every serverless function startup.
  
 ### Frontend: Firebase Hosting
- 
-1. Install the Firebase CLI if you don't have it:
+
+The branded static site and company profile builder live in `public/`. Deploy them with:
+
 ```bash
-   npm install -g firebase-tools
-   firebase login
+firebase deploy --only hosting
 ```
-2. Set `VITE_API_BASE_URL` to the deployed API URL in the frontend build environment, then build the Vite production bundle:
-```bash
-   cd frontend
-   npm install
-   npm run build
-   cd ..
-```
-3. Deploy:
-```bash
-   firebase deploy --only hosting
-```
- 
-The Vite frontend can be hosted on Firebase's CDN. It does not host the FastAPI backend or Celery worker.
- 
+
+`/training.html` builds a synthetic or user-entered company history profile in browser storage. The sandbox sends the saved profile with an uploaded tender to the FastAPI `/upload` endpoint. The history is analysis-time context; it does not fine-tune model weights. Preset examples are illustrative, while uploaded PDFs use the backend pipeline. Set `window.TENDERAI_API_BASE` before the page script if the API is hosted at a different URL. Firebase Hosting serves the frontend only; FastAPI remains on Render.
+
 ---
  
 ## ☁️ AWS Cloud Infrastructure (Terraform Alternative)

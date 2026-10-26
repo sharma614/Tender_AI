@@ -633,7 +633,9 @@ def _money_match(expected: Optional[Dict[str, Any]], actual: Optional[str]) -> O
     return abs(got - float(expected["value"])) < 1.0
 
 
-def run_extraction(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
+def run_extraction(
+    limit: Optional[int], source_filter: str = "all"
+) -> Tuple[bool, Dict[str, Any]]:
     """
     Score ExtractionAgent output against ground truth.
 
@@ -648,7 +650,11 @@ def run_extraction(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
         print("ERROR: extraction mode requires GEMINI_API_KEY.", file=sys.stderr)
         return False, {"mode": "extraction", "error": "GEMINI_API_KEY not set"}
 
-    annotations = load_annotations(limit)
+    annotations = load_annotations()
+    if source_filter != "all":
+        annotations = [ann for ann in annotations if ann.get("source") == source_filter]
+    if limit:
+        annotations = annotations[:limit]
     agent = ExtractionAgent()
 
     print("=" * 78)
@@ -768,6 +774,7 @@ def run_extraction(limit: Optional[int]) -> Tuple[bool, Dict[str, Any]]:
     passed = failures == 0 and bool(scored) and mean(scored) >= 0.60
     return passed, {
         "mode": "extraction",
+        "corpus_filter": source_filter,
         "documents": len(annotations),
         "agent_failures": failures,
         "field_accuracy": accuracy,
@@ -1385,6 +1392,8 @@ def main() -> int:
     )
     parser.add_argument("--mode", choices=["smoke", "retrieval", "extraction", "ablation", "corrigendum"], default="smoke")
     parser.add_argument("--limit", type=int, default=None, help="Evaluate only the first N documents.")
+    parser.add_argument("--source", choices=["all", "real", "synthetic"], default="all",
+                        help="Optional corpus source filter for extraction mode.")
     parser.add_argument("--k", type=int, default=10, help="Top-k for retrieval mode (default: 10).")
     parser.add_argument("--repeats", type=int, default=1,
                         help="Independent full-corpus repetitions for ablation mode (default: 1).")
@@ -1405,7 +1414,7 @@ def main() -> int:
     elif args.mode == "retrieval":
         passed, payload = run_retrieval(args.limit, args.k, args.keep, args.chunking_strategy)
     elif args.mode == "extraction":
-        passed, payload = run_extraction(args.limit)
+        passed, payload = run_extraction(args.limit, args.source)
     elif args.mode == "corrigendum":
         passed, payload = run_corrigendum(args.limit)
     else:  # ablation

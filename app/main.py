@@ -10,7 +10,7 @@ GET  /health        → service health check
 """
 import os
 import threading
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -200,6 +200,7 @@ def health_check(db: Session = Depends(get_db)):
 )
 async def upload_tender(
     file: UploadFile = File(...),
+    company_profile_json: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     if not file.filename.endswith(".pdf"):
@@ -207,6 +208,16 @@ async def upload_tender(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only PDF files are supported.",
         )
+
+    company_profile_dict = None
+    if company_profile_json:
+        try:
+            company_profile_dict = CompanyProfile.model_validate_json(company_profile_json).model_dump()
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid company profile: {e}",
+            )
 
     # 1. Read bytes
     try:
@@ -249,6 +260,7 @@ async def upload_tender(
         db_job=db_job,
         tender_id=db_tender.id,
         raw_text=raw_text,
+        company_profile_dict=company_profile_dict,
         file_bytes=file_bytes,
         original_filename=file.filename,
     )

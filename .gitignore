@@ -49,3 +49,6 @@ foobar_nonexistent_dir/
 
 # Elastic Beanstalk (legacy)
 .elasticbeanstalk/
+
+# Local consolidated implementation patch
+/company_historical_model.patch

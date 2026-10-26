@@ -1,0 +1,14 @@
+{
+  "profile_type": "synthetic_demo_only",
+  "company_name": "Northstar Digital Services (Synthetic)",
+  "annual_turnover": 15000000,
+  "turnover_currency": "USD",
+  "years_of_experience": 8,
+  "has_solvency_certificate": true,
+  "technical_capabilities": [
+    "Cloud Infrastructure",
+    "AI & Analytics",
+    "Cybersecurity Operations"
+  ],
+  "usage": "Analysis-time company profile supplied to the existing compliance and bid-decision pipeline. This is not model-training data and does not fine-tune model weights."
+}

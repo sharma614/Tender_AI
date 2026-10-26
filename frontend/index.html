@@ -456,6 +456,20 @@
                     <input type="file" id="file-input" style="display: none;" accept="application/pdf" onchange="handleFileSelect(event)">
                 </div>
 
+                <details style="margin: 14px 0; padding: 14px; border: 1px solid var(--card-border); border-radius: 10px;">
+                    <summary style="cursor: pointer; font-weight: 600;">Company profile for this analysis</summary>
+                    <p style="margin: 8px 0 12px; color: var(--text-muted); font-size: 12px;">Synthetic demo data. This profile personalizes compliance scoring; it does not fine-tune the model.</p>
+                    <label for="company-name" style="display:block; margin:8px 0 4px;">Company name</label>
+                    <input id="company-name" value="Northstar Digital Services (Synthetic)" style="width:100%; padding:9px; border-radius:6px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <div><label for="company-turnover" style="display:block; margin:8px 0 4px;">Annual turnover (USD)</label><input id="company-turnover" type="number" min="0" step="0.01" value="15000000" style="width:100%; padding:9px; border-radius:6px;"></div>
+                        <div><label for="company-experience" style="display:block; margin:8px 0 4px;">Experience (years)</label><input id="company-experience" type="number" min="0" step="1" value="8" style="width:100%; padding:9px; border-radius:6px;"></div>
+                    </div>
+                    <label style="display:flex; align-items:center; gap:8px; margin:10px 0;"><input id="company-solvency" type="checkbox" checked> Has a solvency certificate</label>
+                    <label for="company-capabilities" style="display:block; margin:8px 0 4px;">Technical capabilities (comma-separated)</label>
+                    <input id="company-capabilities" value="Cloud Infrastructure, AI & Analytics, Cybersecurity Operations" style="width:100%; padding:9px; border-radius:6px;">
+                </details>
+
                 <button class="btn btn-primary" onclick="submitTenderUpload()">
                     🚀 Upload & Process Tender
                 </button>
@@ -690,7 +704,10 @@
             document.getElementById('analysis-timestamp').innerText = 'Completed just now';
         }
 
-        const API_BASE = '%VITE_API_BASE_URL%';
+        const configuredApiBase = '%VITE_API_BASE_URL%';
+        const API_BASE = (window.TENDERAI_API_BASE ||
+            (configuredApiBase.startsWith('%VITE_') ? 'https://tender-ai-9x0r.onrender.com' : configuredApiBase)
+        ).replace(/\/$/, '');
 
         async function submitTenderUpload() {
             if (!selectedFile) {
@@ -699,6 +716,14 @@
             }
             const formData = new FormData();
             formData.append("file", selectedFile);
+            const companyProfile = {
+                company_name: document.getElementById('company-name').value.trim(),
+                annual_turnover: Number(document.getElementById('company-turnover').value),
+                years_of_experience: Number(document.getElementById('company-experience').value),
+                has_solvency_certificate: document.getElementById('company-solvency').checked,
+                technical_capabilities: document.getElementById('company-capabilities').value.split(',').map(value => value.trim()).filter(Boolean)
+            };
+            formData.append('company_profile_json', JSON.stringify(companyProfile));
 
             document.getElementById('job-card').style.display = 'block';
             document.getElementById('job-step-text').innerText = 'Uploading document to FastAPI backend...';

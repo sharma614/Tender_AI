@@ -1,0 +1,82 @@
+{
+  "mode": "retrieval",
+  "documents": 3,
+  "chunks_indexed": 888,
+  "questions": 12,
+  "top_k": 10,
+  "recall": {
+    "@1": 0.08333333333333333,
+    "@3": 0.3333333333333333,
+    "@5": 0.4166666666666667,
+    "@10": 0.6666666666666666
+  },
+  "mrr": 0.2468584656084656,
+  "latency_ms": {
+    "mean": 79.87969999279206,
+    "p50": 92.56349998759106,
+    "p95": 138.66150000831112
+  },
+  "embedding_model": "all-MiniLM-L6-v2",
+  "vector_backend": "sqlite-bruteforce-cosine (HNSW index NOT exercised)",
+  "vector_index": {
+    "available": false,
+    "indexes": []
+  },
+  "chunking_strategy": "character",
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "passed": false,
+  "per_document": [
+    {
+      "doc_id": "real-gem-bob-sms-2025",
+      "chunks": 430,
+      "questions": 4,
+      "recall": {
+        "@1": 0.0,
+        "@3": 0.0,
+        "@5": 0.0,
+        "@10": 0.5
+      },
+      "mrr": 0.059027777777777776,
+      "mean_latency_ms": 129.68015001388267,
+      "missed_question_ids": [
+        1,
+        3
+      ]
+    },
+    {
+      "doc_id": "real-gem-pnb-mdm-2025",
+      "chunks": 351,
+      "questions": 3,
+      "recall": {
+        "@1": 0.3333333333333333,
+        "@3": 0.3333333333333333,
+        "@5": 0.6666666666666666,
+        "@10": 0.6666666666666666
+      },
+      "mrr": 0.4166666666666667,
+      "mean_latency_ms": 96.9574999762699,
+      "missed_question_ids": [
+        2
+      ]
+    },
+    {
+      "doc_id": "real-pnb-cts-scanners-2017",
+      "chunks": 107,
+      "questions": 5,
+      "recall": {
+        "@1": 0.0,
+        "@3": 0.6,
+        "@5": 0.6,
+        "@10": 0.8
+      },
+      "mrr": 0.29523809523809524,
+      "mean_latency_ms": 29.79265998583287,
+      "missed_question_ids": [
+        3
+      ]
+    }
+  ],
+  "elapsed_seconds": 113.466,
+  "timestamp_utc": "2026-10-23T15:57:31.026336+00:00"
+}

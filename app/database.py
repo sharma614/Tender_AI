@@ -11,6 +11,16 @@ load_dotenv()
 def build_database_url() -> str:
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
+        # requirements.txt installs psycopg v3; SQLAlchemy's bare
+        # postgresql:// URL otherwise selects the psycopg2 dialect.
+        if database_url.startswith("postgresql://"):
+            database_url = database_url.replace(
+                "postgresql://", "postgresql+psycopg://", 1
+            )
+        elif database_url.startswith("postgres://"):
+            database_url = database_url.replace(
+                "postgres://", "postgresql+psycopg://", 1
+            )
         return database_url
 
     db_config = {

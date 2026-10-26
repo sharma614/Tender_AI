@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Company Profile Lab | TenderAI</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090a0b;--panel:#131517;--line:#292c30;--muted:#91a5b8;--lime:#c5ff00;--blue:#85bce8}
+    *{box-sizing:border-box}body{margin:0;background-color:var(--bg);background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:58px 58px;color:#f7f8fa;font:16px/1.55 Inter,system-ui,Segoe UI,sans-serif}
+    header{position:sticky;top:0;background:#090a0bf2;border-bottom:1px solid var(--line);z-index:2}.nav{max-width:1200px;margin:auto;height:68px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}.brand{font-weight:800;font-size:22px;color:white;text-decoration:none}.brand span{color:var(--lime)}a{color:var(--blue)}.nav a:last-child{color:var(--lime)}main{max-width:1000px;margin:70px auto;padding:0 24px}.eyebrow{color:var(--lime);font:700 12px ui-monospace,monospace;letter-spacing:.12em}h1{font-size:clamp(34px,5vw,54px);line-height:1.1;margin:14px 0}p{color:var(--muted)}.card{margin:28px 0;padding:28px;border:1px solid var(--line);border-radius:22px;background:#131517ed}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.field label{display:block;color:var(--muted);font-size:13px;margin:0 0 6px}.field input,.field select{width:100%;border-radius:9px;border:1px solid #34383c;background:#090a0b;color:white;padding:12px;font:inherit}.wide{grid-column:1/-1}.history{padding:16px;margin:12px 0;border:1px solid var(--line);border-radius:14px}.history-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}.btn{cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:12px 20px;background:transparent;color:#fff;font:700 14px inherit}.btn.primary{background:var(--lime);color:#101200;border-color:var(--lime)}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}.note{font-size:13px;border-left:2px solid var(--lime);padding-left:14px}.status{min-height:24px;color:var(--lime)}.tags{display:flex;gap:10px;flex-wrap:wrap}.tags label{border:1px solid var(--line);border-radius:20px;padding:7px 12px;color:var(--muted)}.tags input{accent-color:var(--lime)}@media(max-width:700px){.grid,.history-grid{grid-template-columns:1fr}.wide{grid-column:auto}main{margin-top:40px}.card{padding:20px}}
+  </style>
+</head>
+<body>
+<header><nav class="nav"><a class="brand" href="/">tenderai<span>.</span></a><a href="/#sandbox">Sandbox →</a></nav></header>
+<main>
+  <div class="eyebrow">/ COMPANY-SPECIFIC TENDER ANALYSIS /</div>
+  <h1>Build your company profile from project history.</h1>
+  <p>Use fictional company records to see how past work, turnover, experience, and capabilities can inform tender compliance and bid decisions.</p>
+  <div class="card">
+    <h2>Company overview</h2>
+    <div class="grid">
+      <div class="field"><label for="company">Company name</label><input id="company" value="Northstar Digital Services (Synthetic)"></div>
+      <div class="field"><label for="currency">History currency</label><select id="currency"><option>USD</option><option>INR</option></select></div>
+      <div class="field wide"><label>Capabilities and certifications</label><div class="tags" id="capabilities">
+        <label><input type="checkbox" value="Cloud Infrastructure" checked> Cloud Infrastructure</label><label><input type="checkbox" value="AI & Analytics" checked> AI & Analytics</label><label><input type="checkbox" value="Cybersecurity Operations" checked> Cybersecurity Operations</label><label><input type="checkbox" value="Automotive Systems"> Automotive Systems</label><label><input type="checkbox" value="Public Sector Delivery"> Public Sector Delivery</label>
+      </div></div>
+    </div>
+    <h2>Fictional project and financial history</h2>
+    <p>These sample records are synthetic. Add, edit, or remove entries; the latest fiscal-year turnover and earliest project year are summarized into the profile.</p>
+    <div id="history"></div>
+    <div class="actions"><button class="btn" type="button" id="add">+ Add history record</button></div>
+    <div class="actions"><button class="btn primary" type="button" id="save">Save profile for analysis</button><button class="btn" type="button" id="reset">Restore synthetic sample</button></div>
+    <p class="status" id="status" role="status"></p>
+  </div>
+  <div class="card note"><strong>This is profile building, not model fine-tuning.</strong> The entries create a structured company profile that is sent as context with a tender upload. They do not update model weights. The saved profile stays in this browser; do not enter confidential company records in this demo.</div>
+</main>
+<script>
+(() => {
+  const KEY='tenderai.companyProfile.v1';
+  const sample={company_name:'Northstar Digital Services (Synthetic)',turnover_currency:'USD',technical_capabilities:['Cloud Infrastructure','AI & Analytics','Cybersecurity Operations'],has_solvency_certificate:true,history:[
+    {year:2023,title:'Cloud migration for a regional transport operator',revenue:11200000},
+    {year:2024,title:'Synthetic AI analytics and fleet monitoring delivery',revenue:13400000},
+    {year:2025,title:'Synthetic cybersecurity operations and managed cloud contract',revenue:15000000}
+  ]};
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const history=document.getElementById('history');
+  function addRow(record={year:new Date().getFullYear(),title:'',revenue:0}){
+    const row=document.createElement('div');row.className='history';
+    row.innerHTML=`<div class="history-grid"><div class="field"><label>Project / contract</label><input data-key="title" value="${esc(record.title)}" placeholder="Project description"></div><div class="field"><label>Fiscal year</label><input data-key="year" type="number" min="1900" max="2100" value="${Number(record.year)||''}"></div><div class="field"><label>Annual revenue</label><input data-key="revenue" type="number" min="0" step="1000" value="${Number(record.revenue)||0}"></div></div><button class="btn remove" type="button" style="margin-top:12px">Remove record</button>`;
+    row.querySelector('.remove').onclick=()=>row.remove();history.append(row);
+  }
+  function load(data){document.getElementById('company').value=data.company_name||sample.company_name;document.getElementById('currency').value=data.turnover_currency||'USD';document.querySelectorAll('#capabilities input').forEach(el=>el.checked=(data.technical_capabilities||[]).includes(el.value));history.innerHTML='';(data.history||sample.history).forEach(addRow);}
+  try{load(JSON.parse(localStorage.getItem(KEY))||sample)}catch(_){load(sample)}
+  document.getElementById('add').onclick=()=>addRow();
+  document.getElementById('reset').onclick=()=>{load(sample);localStorage.removeItem(KEY);document.getElementById('status').textContent='Synthetic sample restored.'};
+  document.getElementById('save').onclick=()=>{
+    const records=[...history.querySelectorAll('.history')].map(row=>({title:row.querySelector('[data-key="title"]').value.trim(),year:Number(row.querySelector('[data-key="year"]').value),revenue:Number(row.querySelector('[data-key="revenue"]').value)})).filter(x=>x.title&&x.year&&x.revenue>=0);
+    if(!records.length){document.getElementById('status').textContent='Add at least one complete history record.';return}
+    const capabilities=[...document.querySelectorAll('#capabilities input:checked')].map(el=>el.value);
+    const earliest=Math.min(...records.map(x=>x.year));const latest=Math.max(...records.map(x=>x.year));
+    const profile={profile_type:'synthetic_or_user_supplied_demo',company_name:document.getElementById('company').value.trim()||'Demo Company',annual_turnover:records.filter(x=>x.year===latest).reduce((sum,x)=>sum+x.revenue,0),turnover_currency:document.getElementById('currency').value,years_of_experience:Math.max(0,new Date().getFullYear()-earliest),has_solvency_certificate:true,technical_capabilities:capabilities,history:records,usage:'Analysis-time context only; not model-training data.'};
+    localStorage.setItem(KEY,JSON.stringify(profile));document.getElementById('status').textContent=`Saved. ${records.length} records; latest fiscal-year turnover: ${profile.annual_turnover.toLocaleString()} ${profile.turnover_currency}. Open Sandbox and upload a PDF to use this profile.`;
+  };
+})();
+</script>
+</body></html>

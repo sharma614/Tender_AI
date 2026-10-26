@@ -1,0 +1,35 @@
+{
+  "doc_id": "real-rajasthan-it-manpower-2025",
+  "pdf": "pdfs/real-rajasthan-it-manpower-2025.pdf",
+  "source": "real",
+  "page_count": 89,
+  "notes": "Final post-pre-bid RFP issued by RajCOMP Info Services Limited (RISL), Government of Rajasthan, for a two-year IT/ITeS/software development manpower rate contract. Downloaded 2026-10-26 from https://doitc.rajasthan.gov.in/Files/DOITCWEB/WriteReadData/TendersOrders/202501201052526103496FinalRFPAfterPreBid.pdf. Reference F4.15 (7)/RISL/Tech/2024/7164. Turnover eligibility differs by Tier (INR 100 crore for Tier 1; INR 50 crore for Tier 2), so no single numeric minimum_turnover is stored.",
+  "fields": {
+    "tender_title": "RFP for Selection of Tier-I and Tier-II Agencies (Empanelment and Rate Contract) for Providing IT/ITes/Software Development Manpower Services in Government of Rajasthan for a period of 2 Years",
+    "submission_deadline": "28/01/2025 03:00 PM",
+    "contract_duration_months": 24
+  },
+  "questions": [
+    {
+      "id": 1,
+      "query": "What services and staffing contract does RISL seek to establish?",
+      "gold_span": "RFP for Selection of Tier-I and Tier-II Agencies (Empanelment and Rate Contract) for Providing IT/ITes/Software Development Manpower Services in Government of Rajasthan for a period of 2 Years",
+      "gold_page": 1,
+      "field": "title"
+    },
+    {
+      "id": 2,
+      "query": "By when must bidders submit their bids?",
+      "gold_span": "Last Date & Time of Submission of Bid 28/01/2025 03:00 PM",
+      "gold_page": 5,
+      "field": "deadline"
+    },
+    {
+      "id": 3,
+      "query": "What average turnover thresholds apply to the two bidder tiers?",
+      "gold_span": "Company’s Average Turnover INR 100 Crores or more INR 50 Crores or more",
+      "gold_page": 15,
+      "field": "turnover_tiers"
+    }
+  ]
+}

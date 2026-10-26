@@ -636,6 +636,7 @@
                 <li><a href="#sandbox" class="nav-link">Sandbox</a></li>
                 <li><a href="#calculator" class="nav-link">ROI Calculator</a></li>
                 <li><a href="#technology" class="nav-link">RAG Engine</a></li>
+                <li><a href="/training.html" class="nav-link">Company Training</a></li>
                 <li><a href="https://github.com/sharma614/Tender_AI" target="_blank" class="nav-link">GitHub</a></li>
             </ul>
 
@@ -672,7 +673,7 @@
     <section id="sandbox" class="sandbox-section container">
         <div class="section-header">
             <h2 class="section-title">Interactive Multi-Agent Sandbox</h2>
-            <p style="color: var(--text-secondary);">An in-browser illustration of the output format. This page is static and makes no backend calls &mdash; nothing here is a real pipeline run.</p>
+            <p style="color: var(--text-secondary);">Upload a tender for backend analysis, using your saved company profile. Preset examples remain illustrative only.</p>
         </div>
 
         <div class="sandbox-card">
@@ -687,13 +688,13 @@
                 <div class="input-box">
                     <h3 style="font-size: 16px; margin-bottom: 16px; display: flex; justify-content: space-between;">
                         <span>Upload or Select Document</span>
-                        <span style="font-size: 12px; color: var(--lime-green);">PDF / 384d Vectors</span>
+                        <span style="font-size: 12px; color: var(--lime-green);">PDF / Company Profile</span>
                     </h3>
 
                     <div class="drop-area" id="drop-area">
                         <div style="font-size: 32px; margin-bottom: 8px;">📑</div>
                         <div style="font-weight: 600; margin-bottom: 4px;" id="drop-filename">Click or Drop RFP PDF</div>
-                        <div style="font-size: 12px; color: var(--text-dim);">Automated 1,000 char chunking</div>
+                        <div style="font-size: 12px; color: var(--text-dim);">Uses the synthetic or saved company history profile</div>
                         <input type="file" id="sandbox-file" style="display: none;" onchange="handleFileSelect(event)">
                     </div>
 
@@ -890,6 +891,7 @@
     <script>
         const API_BASE = (window.TENDERAI_API_BASE || 'https://tender-ai-9x0r.onrender.com').replace(/\/$/, '');
         let pendingLiveFile = null;
+        const COMPANY_PROFILE_KEY = 'tenderai.companyProfile.v1';
         const presets = [
             {
                 name: "Automotive AI Supply Chain RFP",
@@ -921,6 +923,11 @@
 
         function getActiveData() {
             return customFilePreset || presets[currentPresetIdx];
+        }
+
+        function getCompanyProfile() {
+            try { return JSON.parse(localStorage.getItem(COMPANY_PROFILE_KEY) || 'null'); }
+            catch (_) { return null; }
         }
 
         function renderOutput() {
@@ -1151,10 +1158,39 @@
             renderOutput();
         }
 
-        // Client-side illustration only. This page is a static marketing site and
-        // makes no network calls — the "analysis" below is keyword matching in the
-        // browser, not the TenderAI pipeline. Run the FastAPI app locally for real output.
-        function runRAGSimulation(isCustom = false) {
+        async function runRAGSimulation(isCustom = false) {
+            if (pendingLiveFile) {
+                const out = document.getElementById('out-content');
+                out.textContent = 'Uploading tender and starting analysis…';
+                try {
+                    const form = new FormData();
+                    form.append('file', pendingLiveFile);
+                    const profile = getCompanyProfile();
+                    if (profile) form.append('company_profile_json', JSON.stringify(profile));
+                    const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
+                    const body = await response.json();
+                    if (!response.ok) throw new Error(body.detail || `Upload failed (${response.status})`);
+                    out.textContent = `Analysis job ${body.job_id} started. Checking status…`;
+                    for (let attempt = 0; attempt < 60; attempt++) {
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        const statusResponse = await fetch(`${API_BASE}/jobs/${body.job_id}`);
+                        const statusBody = await statusResponse.json();
+                        if (!statusResponse.ok) throw new Error(statusBody.detail || `Status check failed (${statusResponse.status})`);
+                        if (statusBody.status === 'completed') {
+                            out.innerHTML = `<pre style="white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-secondary)"></pre>`;
+                            out.querySelector('pre').textContent = JSON.stringify(statusBody.result, null, 2);
+                            pendingLiveFile = null;
+                            return;
+                        }
+                        if (statusBody.status === 'dead_letter') throw new Error(statusBody.error_message || 'Analysis job failed.');
+                        out.textContent = `Analysis job ${body.job_id}: ${statusBody.status}…`;
+                    }
+                    throw new Error('Analysis is still running. Refresh the status from the API docs using this job ID: ' + body.job_id);
+                } catch (error) {
+                    out.textContent = `Backend analysis unavailable: ${error.message}. The preset examples below are illustrative.`;
+                    return;
+                }
+            }
             hasAnalyzed = true;
             const out = document.getElementById('out-content');
             out.innerHTML = `<div style="color:var(--lime-green); padding: 12px 0;">⏳ Rendering illustrative walkthrough (in-browser keyword match &mdash; not a real pipeline run)...</div>`;

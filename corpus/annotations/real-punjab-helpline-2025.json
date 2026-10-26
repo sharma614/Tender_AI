@@ -1,0 +1,51 @@
+{
+  "doc_id": "real-punjab-helpline-2025",
+  "pdf": "pdfs/real-punjab-helpline-2025.pdf",
+  "source": "real",
+  "page_count": 71,
+  "notes": "Public tender issued by the Department of Good Governance and Information Technology, Government of Punjab. Downloaded 2026-10-26 from https://punjab.gov.in/wp-content/uploads/2025/09/Fresh-Tender-Call-Centre-1000-seater.pdf. Tender reference DGGIT/Helpline/2025/2. Page numbers refer to PDF pages.",
+  "fields": {
+    "tender_title": "Tender for Setting up, Operations and Management of State Helpline",
+    "submission_deadline": "06.10.2025, 14:00 Hrs",
+    "minimum_turnover": {
+      "value": 250000000,
+      "currency": "INR",
+      "raw": "above INR 25 crores"
+    },
+    "earnest_money_deposit_emd": {
+      "value": 3600000,
+      "currency": "INR",
+      "raw": "Rs. 36,00,000/- (Rs. Thirty Six Lacs only)"
+    }
+  },
+  "questions": [
+    {
+      "id": 1,
+      "query": "What service is the Punjab department procuring?",
+      "gold_span": "Tender for Setting up, Operations and Management of State Helpline",
+      "gold_page": 1,
+      "field": "title"
+    },
+    {
+      "id": 2,
+      "query": "When is the deadline to submit the helpline bids?",
+      "gold_span": "Last date and time for submission of bids 06.10.2025, 14:00 hrs",
+      "gold_page": 4,
+      "field": "deadline"
+    },
+    {
+      "id": 3,
+      "query": "What EMD must a bidder provide for this procurement?",
+      "gold_span": "Earnest Money Deposit (EMD) through online mode Rs. 36,00,000/- (Rs. Thirty Six Lacs only)",
+      "gold_page": 4,
+      "field": "emd"
+    },
+    {
+      "id": 4,
+      "query": "What average annual revenue qualifies a bidder under the financial eligibility requirement?",
+      "gold_span": "The Bidder must have an average annual turnover of above INR 25 crores in the following financial years - FY 2021-22, FY 2022-23 and FY 2023-24",
+      "gold_page": 10,
+      "field": "minimum_turnover"
+    }
+  ]
+}
