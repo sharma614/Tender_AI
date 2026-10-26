@@ -1161,20 +1161,29 @@
         async function runRAGSimulation(isCustom = false) {
             if (pendingLiveFile) {
                 const out = document.getElementById('out-content');
-                out.textContent = 'Uploading tender and starting analysis…';
+                let requestStage = 'Render API health check';
+                out.textContent = 'Checking and waking the Render API…';
                 try {
+                    const healthResponse = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
+                    const healthBody = await healthResponse.json();
+                    if (!healthResponse.ok) throw new Error(`Health endpoint returned HTTP ${healthResponse.status}`);
+                    if (healthBody.database !== 'ok') throw new Error(`API is reachable, but its database reports "${healthBody.database}".`);
+
+                    requestStage = 'tender upload';
+                    out.textContent = 'API is ready. Uploading tender and starting analysis…';
                     const form = new FormData();
                     form.append('file', pendingLiveFile);
                     const profile = getCompanyProfile();
                     if (profile) form.append('company_profile_json', JSON.stringify(profile));
                     const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
-                    const body = await response.json();
+                    const body = await response.json().catch(() => ({}));
                     if (!response.ok) throw new Error(body.detail || `Upload failed (${response.status})`);
                     out.textContent = `Analysis job ${body.job_id} started. Checking status…`;
                     for (let attempt = 0; attempt < 60; attempt++) {
                         await new Promise(resolve => setTimeout(resolve, 3000));
+                        requestStage = `job ${body.job_id} status check`;
                         const statusResponse = await fetch(`${API_BASE}/jobs/${body.job_id}`);
-                        const statusBody = await statusResponse.json();
+                        const statusBody = await statusResponse.json().catch(() => ({}));
                         if (!statusResponse.ok) throw new Error(statusBody.detail || `Status check failed (${statusResponse.status})`);
                         if (statusBody.status === 'completed') {
                             out.innerHTML = `<pre style="white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-secondary)"></pre>`;
@@ -1187,7 +1196,7 @@
                     }
                     throw new Error('Analysis is still running. Refresh the status from the API docs using this job ID: ' + body.job_id);
                 } catch (error) {
-                    out.textContent = `Backend analysis unavailable: ${error.message}. The preset examples below are illustrative.`;
+                    out.textContent = `Backend analysis failed during ${requestStage}: ${error.message}. API: ${API_BASE}. Check this service's Render logs at the same time as this attempt.`;
                     return;
                 }
             }
