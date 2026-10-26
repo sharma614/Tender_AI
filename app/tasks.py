@@ -111,7 +111,6 @@ def run_pipeline(
         # processing, not while FastAPI is importing the task module.
         from .agents.orchestrator import AgentOrchestrator
 
-        embedder = TextEmbedder()
         orchestrator = AgentOrchestrator()
 
         # --- Step 1: Upload PDF to Supabase Storage (optional, non-fatal) ---
