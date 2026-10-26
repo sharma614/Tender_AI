@@ -11,7 +11,6 @@
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20%26%20Storage-3ECF8E.svg)](https://supabase.com)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis%20Broker-00E599.svg)](https://upstash.com)
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
  
 **TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph**; the repository also includes RAG retrieval over pgvector. The free-tier live demo uses full-document analysis and disables per-upload vector indexing by default to avoid loading the SentenceTransformer/PyTorch model on Render's memory-limited web service. Enable `INDEX_TENDER_EMBEDDINGS=true` only on a service with enough memory; indexed chunks are needed for RAG queries. Compliance checks run in Python. Company profile history is passed to analysis as run-time context, not used to fine-tune model weights.
  
@@ -728,9 +727,9 @@ python -m pytest tests/ --cov=app --cov-report=term-missing
  
 ---
  
-## 📜 License
- 
-Licensed under the [MIT License](LICENSE).
+## 📜 Copyright
+
+All rights reserved. No license is granted to use, copy, modify, publish, distribute, sublicense, or sell this project's original source code or documentation without prior written permission. Third-party components remain subject to their respective licenses.
  
 ---
  
