@@ -26,6 +26,7 @@
     </div>
     <h2>Fictional project and financial history</h2>
     <p>These sample records are synthetic. Add, edit, or remove entries; the latest fiscal-year turnover and earliest project year are summarized into the profile.</p>
+    <div class="field" style="margin:18px 0"><label for="history-file">Import a company history file (.json or .csv)</label><input id="history-file" type="file" accept=".json,.csv,application/json,text/csv"><p class="note">JSON format: <code>{"company_name":"Example Co","turnover_currency":"USD","technical_capabilities":["Cloud"],"history":[{"year":2024,"title":"Cloud migration","revenue":1200000}]}</code>. CSV columns: <code>year,title,revenue</code> (optional: company_name,turnover_currency,capabilities).</p></div>
     <div id="history"></div>
     <div class="actions"><button class="btn" type="button" id="add">+ Add history record</button></div>
     <div class="actions"><button class="btn primary" type="button" id="save">Save profile for analysis</button><button class="btn" type="button" id="reset">Restore synthetic sample</button></div>
@@ -48,8 +49,30 @@
     row.innerHTML=`<div class="history-grid"><div class="field"><label>Project / contract</label><input data-key="title" value="${esc(record.title)}" placeholder="Project description"></div><div class="field"><label>Fiscal year</label><input data-key="year" type="number" min="1900" max="2100" value="${Number(record.year)||''}"></div><div class="field"><label>Annual revenue</label><input data-key="revenue" type="number" min="0" step="1000" value="${Number(record.revenue)||0}"></div></div><button class="btn remove" type="button" style="margin-top:12px">Remove record</button>`;
     row.querySelector('.remove').onclick=()=>row.remove();history.append(row);
   }
-  function load(data){document.getElementById('company').value=data.company_name||sample.company_name;document.getElementById('currency').value=data.turnover_currency||'USD';document.querySelectorAll('#capabilities input').forEach(el=>el.checked=(data.technical_capabilities||[]).includes(el.value));history.innerHTML='';(data.history||sample.history).forEach(addRow);}
+  function load(data){document.getElementById('company').value=data.company_name||sample.company_name;document.getElementById('currency').value=data.turnover_currency||'USD';document.querySelectorAll('#capabilities input').forEach(el=>el.checked=(data.technical_capabilities||[]).includes(el.value));history.innerHTML='';(data.history||data.company_history||sample.history).forEach(addRow);}
   try{load(JSON.parse(localStorage.getItem(KEY))||sample)}catch(_){load(sample)}
+  function parseCsv(text){
+    const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(line=>line.trim());
+    if(lines.length<2)throw new Error('CSV needs a header row and at least one record.');
+    const cells=line=>{const out=[];let value='',quoted=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&line[i+1]==='"'&&quoted){value+='"';i++}else if(c==='"')quoted=!quoted;else if(c===','&&!quoted){out.push(value.trim());value=''}else value+=c}out.push(value.trim());return out};
+    const headers=cells(lines.shift()).map(x=>x.toLowerCase());
+    for(const required of ['year','title','revenue'])if(!headers.includes(required))throw new Error(`CSV is missing required column: ${required}`);
+    return lines.map(line=>{const values=cells(line);return Object.fromEntries(headers.map((h,i)=>[h,values[i]||'']))});
+  }
+  document.getElementById('history-file').onchange=async event=>{
+    const file=event.target.files?.[0];if(!file)return;
+    const status=document.getElementById('status');
+    try{
+      const text=await file.text();let imported;
+      if(file.name.toLowerCase().endsWith('.json')) imported=JSON.parse(text);
+      else {const records=parseCsv(text);const first=records[0];imported={company_name:first.company_name||sample.company_name,turnover_currency:first.turnover_currency||'USD',technical_capabilities:(first.capabilities||'').split(/[;|]/).map(x=>x.trim()).filter(Boolean),history:records.map(r=>({year:Number(r.year),title:r.title,revenue:Number(String(r.revenue).replace(/[$,]/g,''))}))};}
+      const records=imported?.history||imported?.company_history;
+      if(!Array.isArray(records)||!records.length)throw new Error('File must contain a non-empty history array.');
+      for(const [index,record] of records.entries())if(!Number(record.year)||!String(record.title||'').trim()||!Number.isFinite(Number(record.revenue)))throw new Error(`History record ${index+1} needs a year, title, and numeric revenue.`);
+      load({...sample,...imported,history:records});status.textContent=`Loaded ${records.length} history records from ${file.name}. Review them, then save the profile.`;
+    }catch(error){status.textContent=`Could not import file: ${error.message}`}
+    event.target.value='';
+  };
   document.getElementById('add').onclick=()=>addRow();
   document.getElementById('reset').onclick=()=>{load(sample);localStorage.removeItem(KEY);document.getElementById('status').textContent='Synthetic sample restored.'};
   document.getElementById('save').onclick=()=>{
@@ -57,7 +80,7 @@
     if(!records.length){document.getElementById('status').textContent='Add at least one complete history record.';return}
     const capabilities=[...document.querySelectorAll('#capabilities input:checked')].map(el=>el.value);
     const earliest=Math.min(...records.map(x=>x.year));const latest=Math.max(...records.map(x=>x.year));
-    const profile={profile_type:'synthetic_or_user_supplied_demo',company_name:document.getElementById('company').value.trim()||'Demo Company',annual_turnover:records.filter(x=>x.year===latest).reduce((sum,x)=>sum+x.revenue,0),turnover_currency:document.getElementById('currency').value,years_of_experience:Math.max(0,new Date().getFullYear()-earliest),has_solvency_certificate:true,technical_capabilities:capabilities,history:records,usage:'Analysis-time context only; not model-training data.'};
+    const profile={profile_type:'synthetic_or_user_supplied_demo',company_name:document.getElementById('company').value.trim()||'Demo Company',annual_turnover:records.filter(x=>x.year===latest).reduce((sum,x)=>sum+x.revenue,0),turnover_currency:document.getElementById('currency').value,years_of_experience:Math.max(0,new Date().getFullYear()-earliest),has_solvency_certificate:true,technical_capabilities:capabilities,company_history:records,history:records,usage:'Analysis-time context only; not model-training data.'};
     localStorage.setItem(KEY,JSON.stringify(profile));document.getElementById('status').textContent=`Saved. ${records.length} records; latest fiscal-year turnover: ${profile.annual_turnover.toLocaleString()} ${profile.turnover_currency}. Open Sandbox and upload a PDF to use this profile.`;
   };
 })();

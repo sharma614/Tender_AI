@@ -79,6 +79,7 @@ produce ALL of the following in a single JSON response:
    Experience: {profile.years_of_experience} years
    Solvency certificate: {profile.has_solvency_certificate}
    Capabilities: {', '.join(profile.technical_capabilities)}
+   Relevant past projects: {', '.join(str(p.get('title', '')) for p in profile.company_history if p.get('title')) or 'None supplied'}
 
 Respond ONLY with a valid JSON object matching EXACTLY this schema:
 {{

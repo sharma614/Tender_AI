@@ -112,6 +112,10 @@ class CompanyProfile(BaseModel):
     years_of_experience: int = Field(..., description="Number of years operating in the target field.")
     has_solvency_certificate: bool = Field(False, description="Does the company have a bank solvency certificate?")
     technical_capabilities: List[str] = Field(default_factory=list, description="List of technical specialities or certifications.")
+    company_history: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="User-provided past project records used as analysis-time evidence; not training data.",
+    )
 
 
 DEFAULT_COMPANY_PROFILE = CompanyProfile(

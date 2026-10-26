@@ -137,9 +137,15 @@ def evaluate_bid_decision(
 
     # 3. Technical Fit Score (0-100)
     technical_fit_score = 70.0  # baseline assumption
-    if profile.technical_capabilities and facts and facts.eligibility_criteria:
+    history_evidence = [
+        str(project.get("title", "")).strip()
+        for project in profile.company_history
+        if project.get("title")
+    ]
+    profile_evidence = [*profile.technical_capabilities, *history_evidence]
+    if profile_evidence and facts and facts.eligibility_criteria:
         matched = 0
-        profile_caps = [c.lower() for c in profile.technical_capabilities]
+        profile_caps = [c.lower() for c in profile_evidence]
         for crit in facts.eligibility_criteria:
             if any(cap in crit.lower() for cap in profile_caps):
                 matched += 1

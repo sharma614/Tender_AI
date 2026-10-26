@@ -100,18 +100,21 @@ def run_pipeline(
     file_bytes       : Original PDF bytes — uploaded to Supabase Storage when provided.
     original_filename: Used as the Supabase Storage object name.
     """
-    # Lazy imports — heavy ML/LLM libs only load in the Celery worker process,
-    # not when the task module is imported by FastAPI
-    from .agents.orchestrator import AgentOrchestrator
-    from .services.embedder import TextEmbedder
-    from .services.pdf_processor import PDFProcessor
-
     db = SessionLocal()
-    embedder = TextEmbedder()
-    orchestrator = AgentOrchestrator()
-
     try:
+        # Persist progress before importing/loading ML models. On a cold Render
+        # instance these imports and model initialization can take a while; the
+        # old ordering left the job appearing "pending" during all that work.
         _update_job_status(db, job_id, status="processing", celery_task_id=celery_task_id)
+
+        # Lazy imports — heavy ML/LLM libs only load after the job is visible as
+        # processing, not while FastAPI is importing the task module.
+        from .agents.orchestrator import AgentOrchestrator
+        from .services.embedder import TextEmbedder
+        from .services.pdf_processor import PDFProcessor
+
+        embedder = TextEmbedder()
+        orchestrator = AgentOrchestrator()
 
         # --- Step 1: Upload PDF to Supabase Storage (optional, non-fatal) ---
         if file_bytes and original_filename:

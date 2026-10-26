@@ -120,14 +120,27 @@ def _run_pipeline_background(
             original_filename=original_filename,
         )
     except Exception as exc:
-        from .database import SessionLocal
-        from .tasks import _update_job_status
-        db = SessionLocal()
+        print(f"[Inline job {job_id}] pipeline failed: {exc!r}", flush=True)
+        try:
+            from .database import SessionLocal
+            from .tasks import _update_job_status
+            db = SessionLocal()
+        except Exception as status_exc:
+            print(
+                f"[Inline job {job_id}] could not open DB to persist failure: {status_exc!r}",
+                flush=True,
+            )
+            return
         try:
             _update_job_status(
                 db, job_id,
                 status="dead_letter",
                 error_message=str(exc),
+            )
+        except Exception as status_exc:
+            print(
+                f"[Inline job {job_id}] could not persist failure status: {status_exc!r}",
+                flush=True,
             )
         finally:
             db.close()
