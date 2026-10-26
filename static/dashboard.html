@@ -723,16 +723,35 @@
                 try {
                     const res = await fetch(`/jobs/${jobId}`);
                     const data = await res.json();
+                    const statusBadge = document.getElementById('job-status-badge');
+                    const stepText = document.getElementById('job-step-text');
+                    const progressFill = document.getElementById('progress-fill');
+                    if (data.status === 'pending') {
+                        statusBadge.innerText = 'Queued';
+                        stepText.innerText = 'Tender accepted; waiting for the analysis task to start.';
+                        progressFill.style.width = '15%';
+                    } else if (data.status === 'processing') {
+                        statusBadge.innerText = 'Processing';
+                        stepText.innerText = 'Tender accepted. Extracting requirements and analyzing clauses; the first run may take longer while the service warms up.';
+                        progressFill.style.width = '55%';
+                    } else if (data.status === 'retrying') {
+                        statusBadge.innerText = 'Retrying';
+                        stepText.innerText = data.error_message || 'A temporary model or network error occurred; the task is retrying.';
+                        progressFill.style.width = '35%';
+                    }
                     if (data.status === 'completed') {
                         clearInterval(interval);
-                        document.getElementById('progress-fill').style.width = '100%';
-                        document.getElementById('job-status-badge').innerText = 'Completed';
-                        document.getElementById('job-status-badge').style.color = 'var(--success)';
+                        progressFill.style.width = '100%';
+                        statusBadge.innerText = 'Completed';
+                        statusBadge.style.color = 'var(--success)';
+                        stepText.innerText = 'Analysis complete.';
                         renderJobResults(data.result);
                     } else if (data.status === 'dead_letter') {
                         clearInterval(interval);
-                        document.getElementById('job-status-badge').innerText = 'Failed';
-                        document.getElementById('job-status-badge').style.color = 'var(--danger)';
+                        progressFill.style.width = '100%';
+                        statusBadge.innerText = 'Failed';
+                        statusBadge.style.color = 'var(--danger)';
+                        stepText.innerText = data.error_message || 'Analysis failed. Check the API logs for details.';
                     }
                 } catch (e) {
                     console.error("Polling error", e);

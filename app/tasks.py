@@ -4,7 +4,7 @@ app/tasks.py — Background Celery tasks for tender processing.
 Flow:
   1. Update job status → processing
   2. Upload raw PDF to Supabase Storage (if bytes provided)
-  3. Run embed pipeline (PDF chunk + pgvector insert, with page provenance)
+  3. Optionally embed PDF chunks into pgvector when INDEX_TENDER_EMBEDDINGS=true
   4. Run the LangGraph multi-agent orchestration
   5. Update job status → completed, store result in DB
 
@@ -110,8 +110,6 @@ def run_pipeline(
         # Lazy imports — heavy ML/LLM libs only load after the job is visible as
         # processing, not while FastAPI is importing the task module.
         from .agents.orchestrator import AgentOrchestrator
-        from .services.embedder import TextEmbedder
-        from .services.pdf_processor import PDFProcessor
 
         embedder = TextEmbedder()
         orchestrator = AgentOrchestrator()
@@ -128,21 +126,36 @@ def run_pipeline(
                     tender.storage_path = storage_path
                     db.commit()
 
-        # --- Step 2: Embed chunks into pgvector (with page provenance) ---
-        chunks = PDFProcessor.chunk_text(raw_text, chunk_size=1000, chunk_overlap=200)
-        chunk_texts = [c["text"] for c in chunks]
-        embeddings = embedder.embed_batch(chunk_texts)
+        # --- Step 2: Optionally index chunks into pgvector -----------------
+        # Full-document mode below does not retrieve these vectors. Loading
+        # PyTorch/SentenceTransformer for every free-tier upload wastes memory
+        # and can restart small instances, so indexing is opt-in there.
+        index_embeddings = os.environ.get("INDEX_TENDER_EMBEDDINGS", "false").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        if index_embeddings:
+            from .services.embedder import TextEmbedder
 
-        for chunk_data, embedding in zip(chunks, embeddings):
-            db.add(TenderChunk(
-                tender_id=tender_id,
-                chunk_index=chunk_data["index"],
-                text_content=chunk_data["text"],
-                embedding=embedding,
-                char_start=chunk_data.get("char_start"),
-                page_number=chunk_data.get("page_number"),
-            ))
-        db.commit()
+            from .services.pdf_processor import PDFProcessor
+
+            chunks = PDFProcessor.chunk_text(raw_text, chunk_size=1000, chunk_overlap=200)
+            embeddings = TextEmbedder().embed_batch([chunk["text"] for chunk in chunks])
+            for chunk_data, embedding in zip(chunks, embeddings):
+                db.add(TenderChunk(
+                    tender_id=tender_id,
+                    chunk_index=chunk_data["index"],
+                    text_content=chunk_data["text"],
+                    embedding=embedding,
+                    char_start=chunk_data.get("char_start"),
+                    page_number=chunk_data.get("page_number"),
+                ))
+            db.commit()
+        else:
+            print(
+                f"[Pipeline] Skipping pgvector embedding for tender {tender_id}; "
+                "INDEX_TENDER_EMBEDDINGS is disabled.",
+                flush=True,
+            )
 
         # --- Step 3: Run multi-agent orchestration ---
         company_profile = None

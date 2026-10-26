@@ -17,6 +17,8 @@ services:
         value: "8000"
       - key: USE_CELERY
         value: "false"
+      - key: INDEX_TENDER_EMBEDDINGS
+        value: "false"
 
 envVarGroups:
   - name: tenderai-secrets

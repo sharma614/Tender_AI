@@ -13,7 +13,7 @@
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
  
-**TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph** and use **RAG over pgvector**; compliance checks run in Python. The repository includes deployment configurations for Render, Supabase, Upstash, and Firebase Hosting. The Firebase site is a static marketing and demo frontend; live PDF analysis depends on the FastAPI service and its database configuration. Company profile history is passed to analysis as run-time context, not used to fine-tune model weights.
+**TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph**; the repository also includes RAG retrieval over pgvector. The free-tier live demo uses full-document analysis and disables per-upload vector indexing by default to avoid loading the SentenceTransformer/PyTorch model on Render's memory-limited web service. Enable `INDEX_TENDER_EMBEDDINGS=true` only on a service with enough memory; indexed chunks are needed for RAG queries. Compliance checks run in Python. Company profile history is passed to analysis as run-time context, not used to fine-tune model weights.
  
 Historical ablation numbers in this repository are exploratory and are not publication-ready. The recorded production pgvector retrieval run covers the 20-document corpus as it stood on 2026-10-22. The current corpus has 24 documents, including 6 real tenders; corpus smoke validation covers 366 annotated retrieval answer spans. Rerun retrieval on production pgvector before reporting updated production performance. Repeated model-based ablation and confidence intervals are still required before making comparative accuracy or latency claims.
 
@@ -96,7 +96,7 @@ The nine target workflow steps:
 | 2 | FastAPI to Supabase Storage | The PDF goes into the `tenders` bucket, and its path is saved in `Tender.storage_path`. |
 | 3 | FastAPI to Upstash Redis | The API dispatches a `process_tender_job` Celery task over a TLS Redis broker (`rediss://`). |
 | 4 | Redis to Celery worker | A background worker on Render picks up the job. Failures are retried with exponential backoff. |
-| 5 | Celery to pgvector | The PDF is extracted with PyMuPDF (OCR as fallback), chunked (1000/200), embedded (384 dimensions) and stored in Supabase pgvector. |
+| 5 | Optional pgvector indexing | When `INDEX_TENDER_EMBEDDINGS=true`, the PDF is chunked (1000/200), embedded (384 dimensions) and stored in Supabase pgvector. It is disabled by default on the free Render web service. |
 | 6 | Celery to LangGraph | The agent graph runs: Extraction, Summary and Risk concurrently, then Compliance, then Bid Decision. |
 | 7 | Engine to PostgreSQL | Extracted facts, risk items, compliance checks and bid scores are committed to the database. |
 | 8 | PostgreSQL to FastAPI | The client polls `GET /jobs/{job_id}` for the full evaluation state. |
@@ -435,6 +435,7 @@ Copy `.env.example` to `.env`:
 | `SUPABASE_BUCKET` | 📦 Storage | Storage bucket for PDFs (default: `tenders`) |
 | `VITE_API_BASE_URL` | 🌐 Frontend deploy | Public API base URL, injected when building the Vite frontend; do not leave the deployed frontend pointed at localhost |
 | `EMBEDDING_MODEL_NAME` | ➖ Optional | HuggingFace embedding model (default: `all-MiniLM-L6-v2`) |
+| `INDEX_TENDER_EMBEDDINGS` | ➖ Optional | Set `true` to embed uploaded tenders into pgvector. Defaults to `false` to keep the free Render API within its memory limit; live demo analysis still runs in full-document mode. |
 | `AWS_ACCESS_KEY_ID` | ☁️ AWS only | AWS credentials, needed only when deploying with `infra/terraform/` |
 | `AWS_SECRET_ACCESS_KEY` | ☁️ AWS only | AWS credentials, needed only when deploying with `infra/terraform/` |
 | `AWS_DEFAULT_REGION` | ☁️ AWS only | AWS region (for example `ap-south-1`) |
