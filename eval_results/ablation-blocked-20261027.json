@@ -1,0 +1,19 @@
+{
+  "mode": "ablation",
+  "status": "interrupted_quota_exhausted",
+  "requested_repeats": 3,
+  "repeats_started": 1,
+  "corpus_documents": 24,
+  "vector_backend": "pgvector-cosine",
+  "model": "gemini-3.6-flash",
+  "first_arm": "mono-full",
+  "documents_attempted": 14,
+  "documents_scored": 0,
+  "documents_failed_quota": 14,
+  "documents_not_attempted_in_first_arm": 10,
+  "other_arms_started": [],
+  "complete_arms": 0,
+  "confidence_intervals": null,
+  "quota_retry_delay_seconds_reported": 44538,
+  "note": "The API rejected the first-arm calls with daily quota errors. The process was stopped after the repeated quota response; no field, token, latency, citation, or comparative result is valid. Temporary evaluation tenders were deleted and removal was verified."
+}

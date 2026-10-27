@@ -45,6 +45,7 @@ junit/
 
 # Local benchmark and scratch artifacts
 SESSION_BENCHMARK_AND_CHANGES.md
+eval_results/deployment-smoke-20261026.json
 foobar_nonexistent_dir/
 
 # Elastic Beanstalk (legacy)

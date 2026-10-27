@@ -14,7 +14,7 @@
  
 **TenderAI** reads a tender document (an RFP), pulls out key facts, flags legal and financial risks, checks eligibility against a company profile, and produces a bid / no-bid recommendation. Several LLM agents are coordinated by **LangGraph**; the repository also includes RAG retrieval over pgvector. The free-tier live demo uses full-document analysis and disables per-upload vector indexing by default to avoid loading the SentenceTransformer/PyTorch model on Render's memory-limited web service. Enable `INDEX_TENDER_EMBEDDINGS=true` only on a service with enough memory; indexed chunks are needed for RAG queries. Compliance checks run in Python. Company profile history is passed to analysis as run-time context, not used to fine-tune model weights.
  
-Historical ablation numbers in this repository are exploratory and are not publication-ready. The recorded production pgvector retrieval run covers the 20-document corpus as it stood on 2026-10-22. The current corpus has 24 documents, including 6 real tenders; corpus smoke validation covers 366 annotated retrieval answer spans. Rerun retrieval on production pgvector before reporting updated production performance. Repeated model-based ablation and confidence intervals are still required before making comparative accuracy or latency claims.
+The current retrieval evaluation covers all 24 annotated tenders (18 synthetic, 6 real) and 366 questions on Supabase pgvector and two SQLite configurations. The corrected-baseline three-repeat model ablation was attempted, but Gemini daily quota errors prevented any scored documents; see `eval_results/ablation-blocked-20261027.json`. The retrieval artifacts and limitations are reported below.
 
 ## Minor Project Summary
 
@@ -30,7 +30,7 @@ Historical ablation numbers in this repository are exploratory and are not publi
 - Record job progress and provide an API and web interface for results.
 - Evaluate corpus integrity and compare system configurations using reproducible artifacts.
 
-**Scope:** This is an academic prototype, not a validated procurement decision system. The corpus currently has 24 annotated tenders: 18 synthetic and 6 real documents (39, 71, 89, 116, 128, and 155 pages). Corpus validation passed for all 24 documents and all 366 retrieval answer spans. The archived production Supabase pgvector retrieval run covers the previous 20-document corpus; query-plan inspection found a representative 430-chunk query used a sequential scan, and the full benchmark did not record per-query plans. The added real documents are a Punjab State Helpline tender and the final post-pre-bid Rajasthan IT manpower RFP. Full-corpus model extraction and ablation have not been run.
+**Scope:** This is an academic prototype, not a validated procurement decision system. The corpus currently has 24 annotated tenders: 18 synthetic and 6 real documents (39, 71, 89, 116, 128, and 155 pages). Corpus validation passed for all 24 documents and all 366 retrieval answer spans. The current production Supabase pgvector retrieval run covers all 24 documents and 366 questions; its aggregate Recall@5 is 65.30%. A separately captured plan for a representative 430-chunk query used a sequential scan and top-N sort, and per-query plans were not recorded for the benchmark. The six real documents span 598 pages. Corpus integrity passed on all 24 annotations and 366 answer spans. The model ablation was attempted but blocked by the Gemini daily quota before any document was scored.
 
 **Main modules:** PDF processing, embedding and retrieval, LangGraph agents, deterministic compliance and bid scoring, asynchronous job handling, and the Vite dashboard.
 
@@ -112,15 +112,15 @@ The nine target workflow steps:
 | Metric | `mono-full` (monolithic baseline) | `multi-rag` / `multi-rag-cite` (TenderAI) |
 |:---|:---:|:---:|
 | **Context per agent call** | Full document text (~45k chars) | ~12k chars of retrieved chunks (about 12 chunks) |
-| **Field accuracy** | Pending valid repeated rerun | Pending valid repeated rerun |
-| **Tokens per document** | Pending valid repeated rerun | Pending valid repeated rerun |
-| **End-to-end latency** | Pending valid repeated rerun | Pending valid repeated rerun |
+| **Field accuracy** | No comparative score: corrected-baseline ablation blocked by provider quota | No comparative score: corrected-baseline ablation blocked by provider quota |
+| **Tokens per document** | No comparative score: corrected-baseline ablation blocked by provider quota | No comparative score: corrected-baseline ablation blocked by provider quota |
+| **End-to-end latency** | No comparative score: corrected-baseline ablation blocked by provider quota | No comparative score: corrected-baseline ablation blocked by provider quota |
 | **Hallucination protection** | None. Output is unanchored, so "lost in the middle" errors are possible | Citations checked by substring containment |
 | **Failure isolation** | A single failure breaks everything | Each agent fails on its own (Extraction, Summary, Risk, Compliance) |
  
-**Evidence status:** the archived ablation artifact `eval_results/ablation-20261002T070644Z.json` contains only five documents and cannot substantiate a four-way comparison. A new three-repeat, 20-document attempt was started after approval to send both real tenders to Gemini, but Gemini returned a daily quota error during the first arm after seven documents had scored; the remaining 13 documents failed. The incomplete attempt is recorded in `eval_results/ablation-attempt-20261022.json`. It has no complete arm or confidence intervals and is not publication-usable. Temporary database rows were removed and their absence verified. Do not cite either attempt as a comparative result.
+**Evidence status:** the corrected-baseline three-repeat attempt on the current 24-document corpus is recorded in `eval_results/ablation-blocked-20261027.json`. Gemini daily quota errors rejected all 14 attempted documents in the first arm, leaving zero scored documents, no complete arm and no confidence interval. Temporary evaluation rows were removed and their absence verified. The archived five-document and 20-document attempts are historical incomplete runs; none supports comparative multi-agent claims.
  
-**Problem:** the issue with a single call over a dense tender is that models lose details buried in the middle of long documents, invent values, and take a long time to respond. **Solution:** TenderAI splits the job across agents. Each one gets the top-K chunks for its domain (at most 12 chunks: 3 per query, up to 5 queries), so the context is about 12k characters instead of 45k.
+**Design:** TenderAI supports splitting analysis across agents, with an optional RAG mode that supplies each agent up to 12 domain-specific chunks (about 12k characters). The deployed free-tier path uses full-document analysis and disables per-upload indexing. Retrieval quality was measured separately on the annotated corpus; the model ablation did not produce comparative scores.
  
 **Agent isolation design:** agents never hold a database session. Extraction, Summarization and Risk run as concurrent LangGraph nodes, and a SQLAlchemy Session shared across threads would corrupt state. Each agent returns a `ToolCallRecord` instead, and the orchestrator's `_persist` node writes them from a single thread once the graph finishes.
  
@@ -526,7 +526,7 @@ Artifacts: `eval_results/retrieval-20261002T065849Z.json` and `eval_results/retr
 | **Character (1000/200)** | 996 | **59.94%** | **73.39%** | **77.49%** | **85.67%** | **0.6808** | **30.58 ms** | **42.50 ms** |
 | **Structure-Aware** | 3,562 | 55.26% | 65.79% | 69.01% | 80.12% | 0.6205 | 78.88 ms | 93.20 ms |
  
-In those SQLite fallback runs, character windows scored higher than structure-aware splitting. That two-chunker comparison still needs to be repeated against production pgvector before it can support a production claim.
+In those SQLite fallback runs, character windows scored higher than structure-aware splitting. A current-corpus three-configuration comparison is reported below; SQLite and pgvector timings include different backend overhead and should be interpreted separately.
  
 #### 2. Production pgvector retrieval (historical corpus snapshot: 20 documents, 349 questions)
 
@@ -540,7 +540,21 @@ Artifact: `eval_results/retrieval-20261022T092051Z.json`. This single retrieval 
 
 Overall P95 retrieval latency was 309.5 ms. The 199.3 ms mean includes the network round trip to Supabase and is not comparable to the earlier in-memory SQLite latency. This is one evaluation pass and has no repeat-based confidence interval. The real subset in this snapshot has only seven questions; its low Recall@5 is an early warning, not a stable estimate. The current four-tender real subset has been measured separately on local SQLite below.
 
-#### 3. Expanded corpus retrieval snapshot before the 2025 SBI tender (local SQLite)
+#### 3. Current-corpus retrieval comparison (24 tenders, 366 questions)
+
+Artifacts: `eval_results/retrieval-20261026T185531Z.json` (Supabase pgvector), `eval_results/retrieval-20261026T182337Z.json` (SQLite character windows), and `eval_results/retrieval-20261026T184750Z.json` (SQLite structure-aware). Each is a single retrieval pass. The 95% intervals use 20,000 tender-cluster bootstrap resamples (seed 20261027); they describe between-tender variation, not repeated query or model runs.
+
+| Backend / chunking | Subset | Docs | Questions | R@5 | 95% tender-cluster interval | MRR@10 | Mean latency |
+|:---|:---|---:|---:|---:|:---:|---:|---:|
+| Supabase pgvector / character | All | 24 | 366 | 65.30% (239/366) | 59.09–71.13% | 0.5818 | 171.3 ms |
+| Supabase pgvector / character | Synthetic | 18 | 342 | 66.96% (229/342) | 60.82–73.10% | 0.6061 | 171.9 ms |
+| Supabase pgvector / character | Real | 6 | 24 | 41.67% (10/24) | 22.73–56.52% | 0.2345 | 161.6 ms |
+| SQLite / character | All | 24 | 366 | 75.14% (275/366) | 70.80–78.80% | 0.6516 | 31.1 ms |
+| SQLite / structure-aware | All | 24 | 366 | 66.67% (244/366) | 63.31–69.02% | 0.5935 | 76.0 ms |
+
+The pgvector catalog contains an HNSW cosine index, but its use cannot be inferred from that fact: the representative 430-row query plan selected sequential scan plus top-N sort (`eval_results/explain-analyze-tender-filter-20261022.txt`). The full retrieval run did not save one plan per question.
+
+#### 4. Expanded corpus retrieval snapshot before the 2025 SBI tender (local SQLite)
 
 Artifact: `eval_results/retrieval-20261023T155531Z.json`. This single run evaluated the 21-document, 354-question corpus before the 2025 SBI tender was added, using character chunks (1,000 characters, 200 overlap) and the SQLite brute-force cosine fallback. It did not exercise pgvector or HNSW and its latency is not comparable with the production run above.
 
@@ -552,7 +566,7 @@ Artifact: `eval_results/retrieval-20261023T155531Z.json`. This single run evalua
 
 The real-tender row is a historical preliminary result over 12 questions; the SBI RFP was added afterward.
 
-#### 4. Current real-tender retrieval (local SQLite)
+#### 5. Historical current-real-subset retrieval (local SQLite)
 
 Artifact: `eval_results/retrieval-20261023T160238Z.json`. This run covers the four current real tenders and all 17 real questions using the local SQLite brute-force cosine backend; it did not exercise pgvector or HNSW.
 
@@ -560,11 +574,11 @@ Artifact: `eval_results/retrieval-20261023T160238Z.json`. This run covers the fo
 |:---|---:|---:|---:|---:|---:|---:|---:|
 | Real | 4 | 17 | 11.76% | 35.29% | 41.18% | 64.71% | 0.2620 |
 
-This is one exploratory run. Recall@5 is 7/17, so it is still a small sample and should not be presented as statistically conclusive. A production pgvector run and repeated evaluation remain outstanding.
+This is a historical single-pass result on the then-current four-real-tender subset (7/17 hits at K=5). The current six-real-tender retrieval results are in the current-corpus comparison above.
 
-#### 5. Current corpus integrity (smoke test)
+#### 6. Current corpus integrity (smoke test)
 
-Artifact: `eval_results/smoke-20261026T142812Z.json`. This validation covers the current 24-document corpus (18 synthetic and 6 real), with 366 answer spans. All annotations conform to the schema, all spans were found in their PDFs, and no query quotes its answer. This checks corpus integrity, not retrieval quality.
+Artifact: `eval_results/smoke-20261026T182409Z.json` (latest); `eval_results/smoke-20261026T142812Z.json` is an earlier pass. This validation covers the current 24-document corpus (18 synthetic and 6 real), with 366 answer spans. All annotations conform to the schema, all spans were found in their PDFs, and no query quotes its answer. This checks corpus integrity, not retrieval quality.
 
 The earlier smoke artifacts remain `eval_results/smoke-20261023T154941Z.json` (21 documents) and `eval_results/smoke-20261022T081509Z.json` (20 documents).
  
@@ -577,9 +591,9 @@ Artifact: `eval_results/smoke-20261022T081509Z.json`
 | Gold spans found verbatim in PDF text | 349 / 349 | 349 / 349 | ✅ PASS |
 | Leakage (queries quoting the answer) | 0 | 0 | ✅ PASS |
  
-#### 6. Field extraction and ablation status
+#### 7. Field extraction and ablation status
 
-The archived extraction artifact `eval_results/extraction-20261002T070913Z.json` covers one document. The archived ablation `eval_results/ablation-20261002T070644Z.json` covers five documents and is invalid as a four-arm result. A new three-repeat attempt on all 20 documents was authorized and started, but stopped in the first arm after Gemini exhausted its daily quota: only seven documents completed, while 13 failed. See `eval_results/ablation-attempt-20261022.json`. No complete arm or confidence interval was produced; the old 80%/100%, token, and latency comparison remains withdrawn. Rerun after Gemini quota resets or with an available quota/model configuration.
+The archived extraction artifact `eval_results/extraction-20261002T070913Z.json` covers one document. The corrected-baseline three-repeat ablation was attempted on the current 24-document corpus. Gemini daily quota errors rejected all 14 attempted documents in the first arm, so zero documents were scored and no arm or confidence interval was completed. The attempt is recorded in `eval_results/ablation-blocked-20261027.json`; older incomplete artifacts are not comparative results. The earlier 80%/100%, token, and latency comparison remains withdrawn.
  
 **CI pass criterion:** Recall@5 ≥ 50%. The build fails if the retriever drops below that.
  

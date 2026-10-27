@@ -1,7 +1,7 @@
 import os
 from urllib.parse import quote_plus
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
@@ -55,12 +55,12 @@ def initialize_database():
     try:
         engine = create_engine(DATABASE_URL, pool_pre_ping=True)
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
         return engine
     except Exception as exc:
         raise RuntimeError(
             "PostgreSQL configured but unreachable; refusing to silently fall back to SQLite. "
-            f"DB_URL={DATABASE_URL}. Original error: {exc}"
+            f"Connection check failed: {type(exc).__name__}: {exc}"
         ) from exc
 
 

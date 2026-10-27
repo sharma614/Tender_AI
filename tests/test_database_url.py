@@ -1,6 +1,7 @@
 import importlib
 import sys
 
+import dotenv
 import pytest
 
 
@@ -11,6 +12,7 @@ def test_build_database_url_uses_db_env(monkeypatch):
     monkeypatch.setenv("DB_HOST", "db.example.com")
     monkeypatch.setenv("DB_PORT", "5432")
     monkeypatch.setenv("DB_NAME", "tenderai")
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *args, **kwargs: False)
 
     sys.modules.pop("app.database", None)
     database = importlib.import_module("app.database")
@@ -26,6 +28,7 @@ def test_initialize_database_raises_when_postgres_configured_but_unreachable(mon
     monkeypatch.setenv("DB_HOST", "db.example.com")
     monkeypatch.setenv("DB_PORT", "5432")
     monkeypatch.setenv("DB_NAME", "tenderai")
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *args, **kwargs: False)
 
     sys.modules.pop("app.database", None)
     database = importlib.import_module("app.database")
